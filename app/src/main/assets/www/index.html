@@ -865,7 +865,7 @@ function clearRepoCache(){
       if(!resp.ok)throw new Error('Token invalide ou scope insuffisant (HTTP '+resp.status+')');
       const repos=await resp.json();
       if(!repos.length)throw new Error('Aucun dépôt trouvé pour ce token');
-      const owner=repos[0]?.owner?.login||'';
+      const owner=(repos[0]&&repos[0].owner&&repos[0].owner.login?repos[0].owner.login:'');
       document.getElementById('gh-owner').value=owner;
       const sel=document.getElementById('gh-repo-sel');
       sel.innerHTML='<option value="">— sélectionner un dépôt —</option>';
@@ -874,7 +874,7 @@ function clearRepoCache(){
       document.getElementById('gh-repo-wrap').style.display='block';
       status.textContent='✓ '+repos.length+' dépôts trouvés pour @'+owner;
       status.style.color='var(--green)';
-      try{const saved=JSON.parse(localStorage.getItem('nps_gh_config')||'null');if(saved?.repo){sel.value=saved.repo;onRepoSelected(saved.branch);}}catch(e){}
+      try{const saved=JSON.parse(localStorage.getItem('nps_gh_config')||'null');if(saved&&saved.repo){sel.value=saved.repo;onRepoSelected(saved.branch);}}catch(e){}
     }catch(e){status.textContent='✗ '+e.message;status.style.color='var(--red)';}
   }
 
@@ -909,12 +909,12 @@ function clearRepoCache(){
     const token=document.getElementById('gh-token').value.trim();
     const owner=document.getElementById('gh-owner').value.trim();
     const repoSel=document.getElementById('gh-repo-sel');
-    const repo=(repoSel?.value||document.getElementById('gh-repo').value).trim();
+    const repo=((repoSel&&repoSel.value)||document.getElementById('gh-repo').value).trim();
     const status=document.getElementById('gh-status');
     if(!token){status.textContent='✗ Token manquant — cliquez 🔍 Détecter d\'abord.';status.style.color='var(--red)';return;}
     if(!owner||!repo){status.textContent='✗ Sélectionnez un dépôt.';status.style.color='var(--red)';return;}
     const brSel=document.getElementById('gh-branch-sel');
-    const branch=(brSel?.value||document.getElementById('gh-branch').value||'main').trim();
+    const branch=((brSel&&brSel.value)||document.getElementById('gh-branch').value||'main').trim();
     document.getElementById('gh-repo').value=repo;
     document.getElementById('gh-branch').value=branch;
     localStorage.setItem('nps_gh_config',JSON.stringify({owner,repo,token,branch}));
@@ -1048,7 +1048,7 @@ function togglePreview(){
   if(visible){ wrap.style.display='none'; return; }
   // build preview
   const paths = Object.keys(S.files);
-  const htmlPath = S.activeFile?.endsWith('.html')
+  const htmlPath = (S.activeFile&&S.activeFile.endsWith('.html'))
     ? S.activeFile
     : paths.find(p=>p==='index.html')||paths.find(p=>p.endsWith('.html'));
   if(!htmlPath){ toast('Aucun fichier HTML','w'); return; }
@@ -2078,7 +2078,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   document.addEventListener('click', e => {
     if(!e.target.closest('#branch-wrap'))
-      document.getElementById('branch-drop')?.classList.remove('open');
+      (function(){var _bd=document.getElementById('branch-drop');if(_bd)_bd.classList.remove('open');})();
   });
   
 
@@ -2120,7 +2120,7 @@ function openExternalUrl(url){
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = (cfg?.name||'app') + '-debug.zip';
+          a.download = ((cfg&&cfg.name?cfg.name:'app')) + '-debug.zip';
           document.body.appendChild(a); a.click();
           setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
           if(btn) btn.textContent = '✅ Téléchargé !';
@@ -2131,13 +2131,13 @@ function openExternalUrl(url){
     }
 
     // Fallback: try to find latest artifact for this run
-    if(cfg?.runId){
+    if(cfg&&cfg.runId){
       if(btn) btn.textContent = '⏳ Recherche de l\'APK...';
       try{
         const artResp = await githubApi(`/actions/runs/${cfg.runId}/artifacts`, ghConfig);
         if(artResp.ok){
           const artData = await artResp.json();
-          const found = artData.artifacts?.[0];
+          const found = artData.artifacts&&artData.artifacts[0];
           if(found){
             S.lastArtifact = found;
             return downloadApkDirect(); // retry with stored artifact

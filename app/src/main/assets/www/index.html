@@ -338,6 +338,8 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
 })();
 </script>
 
+<button onclick="document.body.style.background='green'" style="position:fixed;top:0;left:0;z-index:99999;padding:20px;font-size:20px;background:#f00;color:#fff;border:none;cursor:pointer">TEST CLIC</button>
+<div id="__diag" style="position:fixed;bottom:60px;left:0;right:0;padding:6px 10px;font-size:11px;z-index:99998;text-align:center;display:none;word-break:break-all;max-height:80px;overflow:hidden"></div>
 <div id="app">
 
 <!-- ══ HEADER ══ -->
@@ -823,10 +825,9 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
 </div>
 
 <script>
-// ════════════════════════════════
-// STATE
-// ════════════════════════════════
-// ── Polyfills Android WebView (Chrome < 55) ──────────────────
+// ════════════════════════════════════════════
+// POLYFILLS — Android WebView / Chrome < 55
+// ════════════════════════════════════════════
 (function(){
   if(!NodeList.prototype.forEach){NodeList.prototype.forEach=Array.prototype.forEach;}
   if(!NodeList.prototype.map){NodeList.prototype.map=function(fn){return Array.prototype.map.call(this,fn);};}
@@ -840,224 +841,277 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
   if(!String.prototype.includes){String.prototype.includes=function(s){return this.indexOf(s)!==-1;};}
   if(!Array.prototype.includes){Array.prototype.includes=function(v){return this.indexOf(v)!==-1;};}
   if(typeof Promise!=='undefined'&&!Promise.prototype.finally){Promise.prototype.finally=function(fn){return this.then(function(v){fn();return v;},function(e){fn();throw e;});};}
+  // fetch polyfill (XHR fallback pour très vieux WebView)
+  if(!window.fetch){
+    window.fetch=function(url,opts){
+      return new Promise(function(resolve,reject){
+        var xhr=new XMLHttpRequest();
+        opts=opts||{};
+        xhr.open(opts.method||'GET',url);
+        if(opts.headers){for(var h in opts.headers){xhr.setRequestHeader(h,opts.headers[h]);}}
+        xhr.onload=function(){
+          var ok=xhr.status>=200&&xhr.status<300;
+          var resp={ok:ok,status:xhr.status,
+            text:function(){return Promise.resolve(xhr.responseText);},
+            json:function(){try{return Promise.resolve(JSON.parse(xhr.responseText));}catch(e){return Promise.reject(e);}}
+          };
+          resolve(resp);
+        };
+        xhr.onerror=function(){reject(new Error('Network error'));};
+        xhr.send(opts.body||null);
+      });
+    };
+  }
 })();
-// ── Fin polyfills ────────────────────────────────────────────────
 
-const S = {
+// ════════════════════════════════
+// STATE
+// ════════════════════════════════
+var S = {
   files: {},
   activeFile: null,
   projectName: '',
   method: 'twa',
   iconFile: null,
   splashFile: null,
+  lastConfig: null,
+  lastArtifact: null
 };
 
-document.addEventListener('DOMContentLoaded', ()=>{
-  const iconInput = document.getElementById('c-icon');
-  const splashInput = document.getElementById('c-splash');
-  if(iconInput) iconInput.addEventListener('change', e=>{
-    const f = e.target.files[0];
+// ════════════════════════════════
+// DOM READY
+// ════════════════════════════════
+document.addEventListener('DOMContentLoaded', function(){
+  var iconInput = document.getElementById('c-icon');
+  var splashInput = document.getElementById('c-splash');
+  if(iconInput) iconInput.addEventListener('change', function(e){
+    var f = e.target.files[0];
     S.iconFile = f || null;
-    document.getElementById('c-icon-preview').textContent = f ? `✓ ${f.name} sélectionnée` : 'Aucune icône sélectionnée — une icône par défaut sera utilisée.';
+    document.getElementById('c-icon-preview').textContent = f ? ('\u2713 ' + f.name + ' s\u00e9lectionn\u00e9e') : 'Aucune ic\u00f4ne s\u00e9lectionn\u00e9e \u2014 une ic\u00f4ne par d\u00e9faut sera utilis\u00e9e.';
   });
-  if(splashInput) splashInput.addEventListener('change', e=>{
-    const f = e.target.files[0];
+  if(splashInput) splashInput.addEventListener('change', function(e){
+    var f = e.target.files[0];
     S.splashFile = f || null;
-    document.getElementById('c-splash-preview').textContent = f ? `✓ ${f.name} sélectionné` : 'Aucun splash sélectionné — un fond de couleur thème sera utilisé.';
+    document.getElementById('c-splash-preview').textContent = f ? ('\u2713 ' + f.name + ' s\u00e9lectionn\u00e9') : 'Aucun splash s\u00e9lectionn\u00e9 \u2014 un fond de couleur th\u00e8me sera utilis\u00e9.';
   });
-
-  // Charger la config GitHub sauvegardée — auto-détecte repos/branches
   try{
-    const saved=JSON.parse(localStorage.getItem('nps_gh_config')||'null');
-    if(saved&&saved.token){
-      document.getElementById('gh-token').value=saved.token;
-      document.getElementById('gh-owner').value=saved.owner||'';
-      document.getElementById('gh-repo').value=saved.repo||'';
-      document.getElementById('gh-branch').value=saved.branch||'main';
-      document.getElementById('gh-status').textContent='✓ Configuré : '+(saved.owner||'?')+'/'+(saved.repo||'?')+' · '+(saved.branch||'main')+'  (cliquez 🔍 Détecter pour rafraîchir)';
-      setTimeout(()=>detectRepos(),600);
+    var saved = JSON.parse(localStorage.getItem('nps_gh_config') || 'null');
+    if(saved && saved.token){
+      document.getElementById('gh-token').value = saved.token;
+      document.getElementById('gh-owner').value = saved.owner || '';
+      document.getElementById('gh-repo').value = saved.repo || '';
+      document.getElementById('gh-branch').value = saved.branch || 'main';
+      document.getElementById('gh-status').textContent = '\u2713 Configur\u00e9 : ' + (saved.owner||'?') + '/' + (saved.repo||'?') + ' \u00b7 ' + (saved.branch||'main') + '  (cliquez \uD83D\uDD0D D\u00e9tecter pour rafra\u00eechir)';
+      setTimeout(function(){ detectRepos(); }, 600);
     }
-  }catch(e){}
+  } catch(e){}
+  var nameIn = document.getElementById('c-name');
+  if(nameIn) nameIn.addEventListener('input', function(){
+    var v = nameIn.value.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
+    document.getElementById('c-pkg').value = 'com.nps.' + (v || 'myapp');
+  });
+  try{
+    var qc = document.getElementById('pref-quit-confirm');
+    if(qc) qc.checked = localStorage.getItem('nps_quit_confirm') !== '0';
+  } catch(e){}
 });
 
+// ════════════════════════════════
+// GITHUB — REPOS
+// ════════════════════════════════
 function clearRepoCache(){
-    document.getElementById('gh-repo-wrap').style.display='none';
-    document.getElementById('gh-branch-wrap').style.display='none';
-    document.getElementById('gh-owner').value='';
-    document.getElementById('gh-repo').value='';
-    document.getElementById('gh-branch').value='main';
-  }
-
-  async function detectRepos(){
-    const token=document.getElementById('gh-token').value.trim();
-    const status=document.getElementById('gh-status');
-    if(!token){status.textContent='✗ Entrez votre token d\'abord.';status.style.color='var(--red)';return;}
-    status.textContent='🔍 Détection des dépôts…';status.style.color='var(--muted)';
-    try{
-      const resp=await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner',{
-        headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
-      });
-      if(!resp.ok)throw new Error('Token invalide ou scope insuffisant (HTTP '+resp.status+')');
-      const repos=await resp.json();
-      if(!repos.length)throw new Error('Aucun dépôt trouvé pour ce token');
-      const owner=(repos[0]&&repos[0].owner&&repos[0].owner.login?repos[0].owner.login:'');
-      document.getElementById('gh-owner').value=owner;
-      const sel=document.getElementById('gh-repo-sel');
-      sel.innerHTML='<option value="">— sélectionner un dépôt —</option>';
-      repos.forEach(r=>{const o=document.createElement('option');o.value=r.name;o.textContent=r.name+(r.private?' 🔒':'');sel.appendChild(o);});
-      document.getElementById('gh-repo-count').textContent='('+repos.length+' dépôts)';
-      document.getElementById('gh-repo-wrap').style.display='block';
-      status.textContent='✓ '+repos.length+' dépôts trouvés pour @'+owner;
-      status.style.color='var(--green)';
-      try{const saved=JSON.parse(localStorage.getItem('nps_gh_config')||'null');if(saved&&saved.repo){sel.value=saved.repo;onRepoSelected(saved.branch);}}catch(e){}
-    }catch(e){status.textContent='✗ '+e.message;status.style.color='var(--red)';}
-  }
-
-  async function onRepoSelected(preselectBranch){
-    const owner=document.getElementById('gh-owner').value;
-    const repo=document.getElementById('gh-repo-sel').value;
-    if(!repo)return;
-    document.getElementById('gh-repo').value=repo;
-    const token=document.getElementById('gh-token').value.trim();
-    const status=document.getElementById('gh-status');
-    status.textContent='🔍 Chargement des branches…';status.style.color='var(--muted)';
-    try{
-      const resp=await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`,{
-        headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
-      });
-      if(!resp.ok)throw new Error('Branches introuvables');
-      const branches=await resp.json();
-      const sel=document.getElementById('gh-branch-sel');
-      sel.innerHTML='';
-      branches.forEach(b=>{const o=document.createElement('option');o.value=b.name;o.textContent='🌿 '+b.name;sel.appendChild(o);});
-      if(preselectBranch)sel.value=preselectBranch;
-      document.getElementById('gh-branch').value=sel.value;
-      sel.onchange=()=>document.getElementById('gh-branch').value=sel.value;
-      document.getElementById('gh-branch-count').textContent='('+branches.length+')';
-      document.getElementById('gh-branch-wrap').style.display='block';
-      status.textContent='✓ '+owner+'/'+repo+' · '+branches.length+' branche(s) — sélectionnez une branche puis enregistrez';
-      status.style.color='var(--green)';
-    }catch(e){status.textContent='✗ '+e.message;status.style.color='var(--red)';}
-  }
-
-  function saveGithubConfig(){
-    const token=document.getElementById('gh-token').value.trim();
-    const owner=document.getElementById('gh-owner').value.trim();
-    const repoSel=document.getElementById('gh-repo-sel');
-    const repo=((repoSel&&repoSel.value)||document.getElementById('gh-repo').value).trim();
-    const status=document.getElementById('gh-status');
-    if(!token){status.textContent='✗ Token manquant — cliquez 🔍 Détecter d\'abord.';status.style.color='var(--red)';return;}
-    if(!owner||!repo){status.textContent='✗ Sélectionnez un dépôt.';status.style.color='var(--red)';return;}
-    const brSel=document.getElementById('gh-branch-sel');
-    const branch=((brSel&&brSel.value)||document.getElementById('gh-branch').value||'main').trim();
-    document.getElementById('gh-repo').value=repo;
-    document.getElementById('gh-branch').value=branch;
-    localStorage.setItem('nps_gh_config',JSON.stringify({owner,repo,token,branch}));
-    status.textContent='✓ Enregistré : '+owner+'/'+repo+' · branche "'+branch+'"';
-    status.style.color='var(--green)';
-  }
-
-function getGithubConfig(){
-  try{ return JSON.parse(localStorage.getItem('nps_gh_config')||'null'); }
-  catch(e){ return null; }
+  document.getElementById('gh-repo-wrap').style.display = 'none';
+  document.getElementById('gh-branch-wrap').style.display = 'none';
+  document.getElementById('gh-owner').value = '';
+  document.getElementById('gh-repo').value = '';
+  document.getElementById('gh-branch').value = 'main';
 }
 
-const PAGE_MAP = {
-  home:'p-home', files:'p-files', editor:'p-editor',
-  import:'p-import', convert:'p-convert', guide:'p-guide'
-};
-const NAV_MAP = {
-  home:'nav-home', files:'nav-files', editor:'nav-editor',
-  import:'nav-files', convert:'nav-convert', guide:'nav-guide'
-};
+function detectRepos(){
+  var token = document.getElementById('gh-token').value.trim();
+  var status = document.getElementById('gh-status');
+  if(!token){ status.textContent = "Entrez votre token d'abord."; status.style.color = 'var(--red)'; return; }
+  status.textContent = 'Detection des depots...'; status.style.color = 'var(--muted)';
+  fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner', {
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  }).then(function(resp){
+    if(!resp.ok) throw new Error('Token invalide ou scope insuffisant (HTTP ' + resp.status + ')');
+    return resp.json();
+  }).then(function(repos){
+    if(!repos.length) throw new Error('Aucun depot trouve pour ce token');
+    var owner = (repos[0] && repos[0].owner && repos[0].owner.login) ? repos[0].owner.login : '';
+    document.getElementById('gh-owner').value = owner;
+    var sel = document.getElementById('gh-repo-sel');
+    sel.innerHTML = '<option value="">— selectionner un depot —</option>';
+    for(var i=0;i<repos.length;i++){
+      var o = document.createElement('option');
+      o.value = repos[i].name;
+      o.textContent = repos[i].name + (repos[i].private ? ' (prive)' : '');
+      sel.appendChild(o);
+    }
+    document.getElementById('gh-repo-count').textContent = '(' + repos.length + ' depots)';
+    document.getElementById('gh-repo-wrap').style.display = 'block';
+    status.textContent = repos.length + ' depots trouves pour @' + owner;
+    status.style.color = 'var(--green)';
+    try{
+      var saved = JSON.parse(localStorage.getItem('nps_gh_config') || 'null');
+      if(saved && saved.repo){ sel.value = saved.repo; onRepoSelected(saved.branch); }
+    } catch(e){}
+  }).catch(function(e){ status.textContent = e.message; status.style.color = 'var(--red)'; });
+}
+
+function onRepoSelected(preselectBranch){
+  var owner = document.getElementById('gh-owner').value;
+  var repo = document.getElementById('gh-repo-sel').value;
+  if(!repo) return;
+  document.getElementById('gh-repo').value = repo;
+  var token = document.getElementById('gh-token').value.trim();
+  var status = document.getElementById('gh-status');
+  status.textContent = 'Chargement des branches...'; status.style.color = 'var(--muted)';
+  fetch('https://api.github.com/repos/' + owner + '/' + repo + '/branches?per_page=100', {
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  }).then(function(resp){
+    if(!resp.ok) throw new Error('Branches introuvables');
+    return resp.json();
+  }).then(function(branches){
+    var sel = document.getElementById('gh-branch-sel');
+    sel.innerHTML = '';
+    for(var i=0;i<branches.length;i++){
+      var o = document.createElement('option');
+      o.value = branches[i].name;
+      o.textContent = branches[i].name;
+      sel.appendChild(o);
+    }
+    if(preselectBranch) sel.value = preselectBranch;
+    document.getElementById('gh-branch').value = sel.value;
+    sel.onchange = function(){ document.getElementById('gh-branch').value = sel.value; };
+    document.getElementById('gh-branch-count').textContent = '(' + branches.length + ')';
+    document.getElementById('gh-branch-wrap').style.display = 'block';
+    status.textContent = owner + '/' + repo + ' - ' + branches.length + ' branche(s) - selectionnez une branche puis enregistrez';
+    status.style.color = 'var(--green)';
+  }).catch(function(e){ status.textContent = e.message; status.style.color = 'var(--red)'; });
+}
+
+function saveGithubConfig(){
+  var token = document.getElementById('gh-token').value.trim();
+  var owner = document.getElementById('gh-owner').value.trim();
+  var repoSel = document.getElementById('gh-repo-sel');
+  var repo = ((repoSel && repoSel.value) || document.getElementById('gh-repo').value).trim();
+  var status = document.getElementById('gh-status');
+  if(!token){ status.textContent = "Token manquant. Cliquez Detecter d'abord."; status.style.color = 'var(--red)'; return; }
+  if(!owner || !repo){ status.textContent = 'Selectionnez un depot.'; status.style.color = 'var(--red)'; return; }
+  var brSel = document.getElementById('gh-branch-sel');
+  var branch = ((brSel && brSel.value) || document.getElementById('gh-branch').value || 'main').trim();
+  document.getElementById('gh-repo').value = repo;
+  document.getElementById('gh-branch').value = branch;
+  localStorage.setItem('nps_gh_config', JSON.stringify({owner:owner, repo:repo, token:token, branch:branch}));
+  status.textContent = 'Enregistre : ' + owner + '/' + repo + ' branche "' + branch + '"';
+  status.style.color = 'var(--green)';
+}
+
+function getGithubConfig(){
+  try{ return JSON.parse(localStorage.getItem('nps_gh_config') || 'null'); }
+  catch(e){ return null; }
+}
 
 // ════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════
+var PAGE_MAP = {
+  home:'p-home', files:'p-files', editor:'p-editor',
+  import:'p-import', convert:'p-convert', guide:'p-guide'
+};
+var NAV_MAP = {
+  home:'nav-home', files:'nav-files', editor:'nav-editor',
+  import:'nav-files', convert:'nav-convert', guide:'nav-guide'
+};
+
 function goPage(id){
-  var _pg=document.querySelectorAll('.page');for(var _pi=0;_pi<_pg.length;_pi++){_pg[_pi].classList.remove('active');}
-  var _bn=document.querySelectorAll('.bnav');for(var _bi=0;_bi<_bn.length;_bi++){_bn[_bi].classList.remove('active');}
-  const page = document.getElementById(PAGE_MAP[id]||'p-home');
+  var pages = document.querySelectorAll('.page');
+  for(var i=0;i<pages.length;i++) pages[i].classList.remove('active');
+  var navs = document.querySelectorAll('.bnav');
+  for(var j=0;j<navs.length;j++) navs[j].classList.remove('active');
+  var page = document.getElementById(PAGE_MAP[id] || 'p-home');
   if(page) page.classList.add('active');
-  const nav = document.getElementById(NAV_MAP[id]||'nav-home');
+  var nav = document.getElementById(NAV_MAP[id] || 'nav-home');
   if(nav) nav.classList.add('active');
   document.getElementById('body').scrollTo(0,0);
-  if(id==='home') updateHomeStats();
-  if(id==='files') renderFileList();
+  if(id === 'home') updateHomeStats();
+  if(id === 'files') renderFileList();
 }
 
 // ════════════════════════════════
 // HOME STATS
 // ════════════════════════════════
 function updateHomeStats(){
-  const paths = Object.keys(S.files);
-  const el = document.getElementById('home-stats');
+  var paths = Object.keys(S.files);
+  var el = document.getElementById('home-stats');
   if(!paths.length){
-    el.innerHTML='<span style="color:var(--muted)">Aucun projet ouvert. Commencez par créer ou importer un projet.</span>';
+    el.innerHTML = '<span style="color:var(--muted)">Aucun projet ouvert. Commencez par creer ou importer un projet.</span>';
     return;
   }
-  let total=0; Object.values(S.files).forEach(v=>total+=(v||'').length);
-  el.innerHTML=`
-    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-      <div style="text-align:center">
-        <div style="font-size:22px;font-weight:bold;color:var(--cyan)">${paths.length}</div>
-        <div style="font-size:11px;color:var(--muted)">fichiers</div>
-      </div>
-      <div style="text-align:center">
-        <div style="font-size:22px;font-weight:bold;color:var(--accent)">${(total/1024).toFixed(1)} KB</div>
-        <div style="font-size:11px;color:var(--muted)">taille</div>
-      </div>
-      <div style="text-align:center">
-        <div style="font-size:22px;font-weight:bold;color:var(--green)">${S.projectName||'—'}</div>
-        <div style="font-size:11px;color:var(--muted)">projet</div>
-      </div>
-    </div>
-  `;
+  var total = 0;
+  var vals = Object.values(S.files);
+  for(var i=0;i<vals.length;i++) total += (vals[i] || '').length;
+  el.innerHTML =
+    '<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">' +
+    '<div style="text-align:center"><div style="font-size:22px;font-weight:bold;color:var(--cyan)">' + paths.length + '</div><div style="font-size:11px;color:var(--muted)">fichiers</div></div>' +
+    '<div style="text-align:center"><div style="font-size:22px;font-weight:bold;color:var(--accent)">' + (total/1024).toFixed(1) + ' KB</div><div style="font-size:11px;color:var(--muted)">taille</div></div>' +
+    '<div style="text-align:center"><div style="font-size:22px;font-weight:bold;color:var(--green)">' + (S.projectName || '—') + '</div><div style="font-size:11px;color:var(--muted)">projet</div></div>' +
+    '</div>';
 }
 
 // ════════════════════════════════
 // FILE ICONS
 // ════════════════════════════════
-const ICONS = {html:'🌐',css:'🎨',js:'⚡',json:'📋',png:'🖼️',jpg:'🖼️',svg:'🖼️',md:'📝',txt:'📄',default:'📄'};
-function extOf(p){const s=p.split('.');return s.length>1?s.pop().toLowerCase():'default';}
-function iconOf(p){return ICONS[extOf(p)]||ICONS.default;}
-function sizeOf(content){const b=(content||'').length;return b<1024?b+'B':(b/1024).toFixed(1)+'KB';}
+var ICONS = {html:'🌐',css:'🎨',js:'⚡',json:'📋',png:'🖼️',jpg:'🖼️',svg:'🖼️',md:'📝',txt:'📄','default':'📄'};
+function extOf(p){ var s = p.split('.'); return s.length > 1 ? s.pop().toLowerCase() : 'default'; }
+function iconOf(p){ return ICONS[extOf(p)] || ICONS['default']; }
+function sizeOf(content){ var b = (content || '').length; return b < 1024 ? b + 'B' : (b/1024).toFixed(1) + 'KB'; }
 
 // ════════════════════════════════
 // FILE LIST
 // ════════════════════════════════
 function renderFileList(){
-  const paths = Object.keys(S.files).sort();
-  const list = document.getElementById('file-list');
-  const empty = document.getElementById('file-list-empty');
-  if(!paths.length){
-    list.innerHTML='';
-    empty.style.display='block';
-    return;
+  var paths = Object.keys(S.files).sort();
+  var list = document.getElementById('file-list');
+  var empty = document.getElementById('file-list-empty');
+  if(!paths.length){ list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  var html = '';
+  for(var i=0;i<paths.length;i++){
+    var p = paths[i];
+    html +=
+      '<div class="fitem">' +
+      '<div class="ficon" onclick="openFileEditor(\'' + esc(p) + '\')">' + iconOf(p) + '</div>' +
+      '<div class="finfo" onclick="openFileEditor(\'' + esc(p) + '\')">' +
+      '<div class="fname">' + p + '</div>' +
+      '<div class="fsize">' + sizeOf(S.files[p]) + '</div>' +
+      '</div>' +
+      '<div class="fdel" onclick="deleteFile(\'' + esc(p) + '\')">🗑</div>' +
+      '</div>';
   }
-  empty.style.display='none';
-  list.innerHTML = paths.map(p=>`
-    <div class="fitem">
-      <div class="ficon" onclick="openFileEditor('${esc(p)}')">${iconOf(p)}</div>
-      <div class="finfo" onclick="openFileEditor('${esc(p)}')">
-        <div class="fname">${p}</div>
-        <div class="fsize">${sizeOf(S.files[p])}</div>
-      </div>
-      <div class="fdel" onclick="deleteFile('${esc(p)}')">🗑</div>
-    </div>
-  `).join('');
+  list.innerHTML = html;
 }
 
 function deleteFile(path){
-  if(confirm('Supprimer '+path+' ?')){
+  if(confirm('Supprimer ' + path + ' ?')){
     delete S.files[path];
-    if(S.activeFile===path) S.activeFile=null;
+    if(S.activeFile === path) S.activeFile = null;
     renderFileList();
-    toast('Fichier supprimé');
+    toast('Fichier supprime');
   }
 }
 
-function esc(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function esc(s){ return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
 // ════════════════════════════════
 // EDITOR
@@ -1066,66 +1120,70 @@ function openFileEditor(path){
   if(!S.files.hasOwnProperty(path)) return;
   S.activeFile = path;
   document.getElementById('ed-filename').textContent = path;
-  document.getElementById('editor-area').value = S.files[path]||'';
+  document.getElementById('editor-area').value = S.files[path] || '';
   goPage('editor');
 }
 
 function saveEditor(){
-  if(!S.activeFile){ toast('Aucun fichier sélectionné','w'); return; }
+  if(!S.activeFile){ toast('Aucun fichier selectionne', 'w'); return; }
   S.files[S.activeFile] = document.getElementById('editor-area').value;
-  toast('✓ Sauvegardé : '+S.activeFile);
+  toast('Sauvegarde : ' + S.activeFile);
 }
 
 function togglePreview(){
   saveEditor();
-  const wrap = document.getElementById('preview-wrap');
-  const visible = wrap.style.display!=='none';
-  if(visible){ wrap.style.display='none'; return; }
-  // build preview
-  const paths = Object.keys(S.files);
-  const htmlPath = (S.activeFile&&S.activeFile.endsWith('.html'))
-    ? S.activeFile
-    : paths.find(p=>p==='index.html')||paths.find(p=>p.endsWith('.html'));
-  if(!htmlPath){ toast('Aucun fichier HTML','w'); return; }
-  let html = S.files[htmlPath]||'';
-  // inject CSS/JS inline
-  paths.filter(p=>p.endsWith('.css')).forEach(cp=>{
-    html=html.replace(new RegExp(`<link[^>]+href=["']${cp.split('/').pop()}["'][^>]*>`,'gi'),`<style>${S.files[cp]}</style>`);
-  });
-  paths.filter(p=>p.endsWith('.js')&&!p.includes('sw')).forEach(jp=>{
-    html=html.replace(new RegExp(`<script[^>]+src=["']${jp.split('/').pop()}["'][^>]*><\\/script>`,'gi'),`<script>${S.files[jp]}<\/script>`);
-  });
+  var wrap = document.getElementById('preview-wrap');
+  var visible = wrap.style.display !== 'none';
+  if(visible){ wrap.style.display = 'none'; return; }
+  var paths = Object.keys(S.files);
+  var htmlPath = null;
+  if(S.activeFile && S.activeFile.endsWith('.html')){
+    htmlPath = S.activeFile;
+  } else {
+    for(var i=0;i<paths.length;i++){ if(paths[i]==='index.html'){ htmlPath=paths[i]; break; } }
+    if(!htmlPath){ for(var j=0;j<paths.length;j++){ if(paths[j].endsWith('.html')){ htmlPath=paths[j]; break; } } }
+  }
+  if(!htmlPath){ toast('Aucun fichier HTML', 'w'); return; }
+  var html = S.files[htmlPath] || '';
+  for(var ci=0;ci<paths.length;ci++){
+    if(paths[ci].endsWith('.css')){
+      var fn = paths[ci].split('/').pop();
+      html = html.replace(new RegExp('<link[^>]+href=["\']+' + fn + '["\']+[^>]*>', 'gi'), '<style>' + S.files[paths[ci]] + '</style>');
+    }
+  }
+  for(var ji=0;ji<paths.length;ji++){
+    if(paths[ji].endsWith('.js') && paths[ji].indexOf('sw') === -1){
+      var jfn = paths[ji].split('/').pop();
+      html = html.replace(new RegExp('<script[^>]+src=["\']+' + jfn + '["\']+[^>]*><\\/script>', 'gi'), '<script>' + S.files[paths[ji]] + '<\/script>');
+    }
+  }
   document.getElementById('preview-frame').srcdoc = html;
-  wrap.style.display='block';
-  wrap.scrollIntoView({behavior:'smooth',block:'start'});
+  wrap.style.display = 'block';
+  wrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function insertSnippet(type){
-  const ta = document.getElementById('editor-area');
-  const pos = ta.selectionStart;
-  const snippets = {
-    html:'<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <title>Mon App</title>\n</head>\n<body>\n  \n
-<!-- Bandeau diagnostic JS (sera retiré après vérification) -->
-<div id="__diag" style="position:fixed;bottom:60px;left:0;right:0;padding:6px 10px;font-size:11px;z-index:99998;text-align:center;display:none;word-break:break-all;max-height:80px;overflow:hidden"></div>
-
-</body>\n</html>',
+  var ta = document.getElementById('editor-area');
+  var pos = ta.selectionStart;
+  var snippets = {
+    html:'<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <title>Mon App</title>\n</head>\n<body>\n  \n</body>\n</html>',
     link:'<link rel="stylesheet" href="style.css">',
     script:'<script src="app.js"><\/script>',
     div:'<div class="">\n  \n</div>',
     flex:'display: flex;\nalign-items: center;\njustify-content: center;',
-    console:'console.log(\'\');',
+    console:"console.log('');"
   };
-  const s = snippets[type]||'';
-  ta.value = ta.value.slice(0,pos)+s+ta.value.slice(ta.selectionEnd);
-  ta.selectionStart = ta.selectionEnd = pos+s.length;
+  var s = snippets[type] || '';
+  ta.value = ta.value.slice(0, pos) + s + ta.value.slice(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = pos + s.length;
   ta.focus();
 }
 
 function indentCode(){
-  const ta = document.getElementById('editor-area');
-  const pos = ta.selectionStart;
-  ta.value = ta.value.slice(0,pos)+'  '+ta.value.slice(ta.selectionEnd);
-  ta.selectionStart = ta.selectionEnd = pos+2;
+  var ta = document.getElementById('editor-area');
+  var pos = ta.selectionStart;
+  ta.value = ta.value.slice(0, pos) + '  ' + ta.value.slice(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = pos + 2;
   ta.focus();
 }
 
@@ -1135,237 +1193,132 @@ function indentCode(){
 function handleDrop(e){
   e.preventDefault();
   document.getElementById('upzone').classList.remove('drag');
-  processFiles([...e.dataTransfer.files]);
+  var files = [];
+  for(var i=0;i<e.dataTransfer.files.length;i++) files.push(e.dataTransfer.files[i]);
+  processFiles(files);
 }
-function handleFileInput(inp){ processFiles([...inp.files]); inp.value=''; }
+function handleFileInput(inp){
+  var files = [];
+  for(var i=0;i<inp.files.length;i++) files.push(inp.files[i]);
+  processFiles(files);
+  inp.value = '';
+}
 
-async function processFiles(files){
-  let log='', loaded=0;
-  for(const f of files){
+function processFiles(files){
+  var log = '', loaded = 0, idx = 0;
+  function processNext(){
+    if(idx >= files.length){
+      document.getElementById('import-log').innerHTML = log || 'Aucun fichier.';
+      if(loaded) toast(loaded + ' fichier(s) importe(s)');
+      updateHomeStats();
+      setTimeout(function(){ goPage('files'); }, 600);
+      return;
+    }
+    var f = files[idx++];
     if(f.name.endsWith('.zip')){
-      try{
-        const zip = await JSZip.loadAsync(f);
+      JSZip.loadAsync(f).then(function(zip){
         S.projectName = f.name.replace('.zip','');
-        const entries=[];
-        zip.forEach((path,entry)=>{ if(!entry.dir) entries.push({path,entry}); });
-        for(const {path,entry} of entries){
-          try{ S.files[path]=await entry.async('text'); loaded++; }
-          catch(e){ S.files[path]='[binaire]'; loaded++; }
+        var entries = [];
+        zip.forEach(function(path, entry){ if(!entry.dir) entries.push({path:path, entry:entry}); });
+        var ei = 0;
+        function nextEntry(){
+          if(ei >= entries.length){
+            log += 'ZIP "' + f.name + '" -> ' + entries.length + ' fichiers<br>';
+            loaded += entries.length;
+            processNext(); return;
+          }
+          var item = entries[ei++];
+          item.entry.async('text').then(function(txt){
+            S.files[item.path] = txt; nextEntry();
+          }).catch(function(){
+            S.files[item.path] = '[binaire]'; nextEntry();
+          });
         }
-        log+=`✓ ZIP "${f.name}" → ${entries.length} fichiers<br>`;
-      }catch(e){ log+=`✗ Erreur ZIP: ${e.message}<br>`; }
+        nextEntry();
+      }).catch(function(e){ log += 'Erreur ZIP: ' + e.message + '<br>'; processNext(); });
     } else {
-      S.files[f.name]=await f.text(); loaded++; log+=`✓ ${f.name}<br>`;
+      var reader = new FileReader();
+      reader.onload = function(ev){ S.files[f.name] = ev.target.result; loaded++; log += f.name + '<br>'; processNext(); };
+      reader.onerror = function(){ log += 'Erreur: ' + f.name + '<br>'; processNext(); };
+      reader.readAsText(f);
     }
   }
-  document.getElementById('import-log').innerHTML=log||'Aucun fichier.';
-  if(loaded){ toast(`✓ ${loaded} fichier(s) importé(s)`); }
-  updateHomeStats();
-  // go to files page
-  setTimeout(()=>goPage('files'),600);
+  processNext();
 }
 
 // ════════════════════════════════
 // TEMPLATE
 // ════════════════════════════════
 function startTemplate(){
-  S.projectName='mon-pwa';
-  S.files={};
-  S.files['index.html']=`<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#7c6eff">
-  <title>Mon Application</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div class="app">
-    <header>
-      <h1>🚀 Mon Application</h1>
-      <p>Créée avec PWA-APK by NPS.NELSON</p>
-    </header>
-    <main>
-      <div class="card">
-        <h2>Bienvenue !</h2>
-        <p>Votre PWA est prête. Modifiez ce fichier pour personnaliser votre application.</p>
-        <button onclick="alert('PWA fonctionne ! 🎉')">Tester</button>
-      </div>
-    </main>
-  </div>
-  <script src="app.js"><\/script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('SW enregistré'))
-        .catch(e => console.log('SW erreur:', e));
-    }
-  <\/script>
-</body>
-</html>`;
-
-  S.files['style.css']=`* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: system-ui, sans-serif;
-  background: #0a0a14;
-  color: #e0e0f0;
-  min-height: 100vh;
-}
-.app { max-width: 480px; margin: 0 auto; padding: 20px; }
-header {
-  text-align: center;
-  padding: 40px 0 30px;
-  border-bottom: 1px solid #222;
-  margin-bottom: 24px;
-}
-h1 { font-size: 26px; color: #7c6eff; margin-bottom: 8px; }
-header p { color: #606090; font-size: 14px; }
-.card {
-  background: #14141f;
-  border: 1px solid #222;
-  border-radius: 12px;
-  padding: 20px;
-}
-h2 { font-size: 18px; margin-bottom: 10px; color: #00e5ff; }
-p { color: #8080b0; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
-button {
-  background: linear-gradient(135deg, #7c6eff, #00e5ff);
-  color: #fff;
-  border: none;
-  padding: 12px 28px;
-  border-radius: 10px;
-  font-size: 15px;
-  cursor: pointer;
-  font-weight: 700;
-}`;
-
-  S.files['app.js']=`// PWA-APK by NPS.NELSON — app.js
-console.log('App démarrée par NPS.NELSON');
-
-// Exemple de code
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM prêt');
-});`;
-
-  S.files['manifest.json']=JSON.stringify({
-    name:'Mon Application',short_name:'MonApp',
-    description:'PWA créée avec PWA-APK by NPS.NELSON by NPS.NELSON',
-    start_url:'/',scope:'/',display:'standalone',
-    theme_color:'#7c6eff',background_color:'#0a0a14',orientation:'any',
-    icons:[
-      {src:'icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},
-      {src:'icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}
-    ]
-  },null,2);
-
-  S.files['sw.js']=`// Service Worker — PWA-APK by NPS.NELSON
-const CACHE = 'nps-pwa-v1';
-const FILES = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/manifest.json'
-];
-
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
-});
-
-self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
-  );
-});`;
-
+  S.projectName = 'mon-pwa';
+  S.files = {};
+  S.files['index.html'] = '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Mon Application</title>\n  <link rel="manifest" href="manifest.json">\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <div class="app">\n    <h1>Mon Application</h1>\n    <button onclick="alert(\'Fonctionne !\')">Tester</button>\n  </div>\n  <script src="app.js"><\/script>\n<\/body>\n<\/html>';
+  S.files['style.css'] = '* { margin: 0; padding: 0; box-sizing: border-box; }\nbody { font-family: system-ui, sans-serif; background: #0a0a14; color: #e0e0f0; }\n.app { max-width: 480px; margin: 0 auto; padding: 20px; }\nh1 { color: #7c6eff; margin-bottom: 20px; }\nbutton { background: #7c6eff; color: #fff; border: none; padding: 12px 28px; border-radius: 10px; font-size: 15px; cursor: pointer; }';
+  S.files['app.js'] = "// app.js\nconsole.log('App demarree');\ndocument.addEventListener('DOMContentLoaded', function() { console.log('DOM pret'); });";
+  S.files['manifest.json'] = JSON.stringify({name:'Mon Application',short_name:'MonApp',start_url:'/',scope:'/',display:'standalone',theme_color:'#7c6eff',background_color:'#0a0a14',icons:[{src:'icon-192.png',sizes:'192x192',type:'image/png'}]},null,2);
+  S.files['sw.js'] = "var CACHE='nps-v1';var FILES=['/','/index.html','/style.css','/app.js'];self.addEventListener('install',function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(FILES);}));});self.addEventListener('fetch',function(e){e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request);}));});";
   updateHomeStats();
   renderFileList();
-  toast('✓ Projet template créé — 5 fichiers');
-  setTimeout(()=>goPage('files'),500);
+  toast('Projet template cree - 5 fichiers');
+  setTimeout(function(){ goPage('files'); }, 500);
 }
 
 // ════════════════════════════════
 // EXPORT ZIP
 // ════════════════════════════════
-async function exportZip(){
-  if(!Object.keys(S.files).length){ toast('Aucun fichier à exporter','w'); return; }
+function exportZip(){
+  if(!Object.keys(S.files).length){ toast('Aucun fichier a exporter', 'w'); return; }
   saveEditorSilent();
-  toast('Création du ZIP...');
-  const zip = new JSZip();
-  Object.keys(S.files).forEach(p=>zip.file(p, S.files[p]||''));
-  const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});
-  saveAs(blob, (S.projectName||'projet')+'.zip');
-  toast(`✓ ${(S.projectName||'projet')}.zip téléchargé`);
+  toast('Creation du ZIP...');
+  var zip = new JSZip();
+  var keys = Object.keys(S.files);
+  for(var i=0;i<keys.length;i++) zip.file(keys[i], S.files[keys[i]] || '');
+  zip.generateAsync({type:'blob', compression:'DEFLATE'}).then(function(blob){
+    saveAs(blob, (S.projectName || 'projet') + '.zip');
+    toast((S.projectName || 'projet') + '.zip telecharge');
+  });
 }
 
 function saveEditorSilent(){
-  if(S.activeFile){
-    S.files[S.activeFile]=document.getElementById('editor-area').value;
-  }
+  if(S.activeFile) S.files[S.activeFile] = document.getElementById('editor-area').value;
 }
 
 // ════════════════════════════════
 // ANALYSE
 // ════════════════════════════════
 function analyzeProject(){
-  const paths = Object.keys(S.files);
-  const checks = [
-    {label:'Fichiers présents', ok:paths.length>0, hint:'Le projet contient des fichiers'},
-    {label:'index.html', ok:paths.some(p=>p.endsWith('.html')), hint:'Fichier HTML principal'},
-    {label:'manifest.json', ok:paths.some(p=>p.endsWith('manifest.json')), hint:'Requis pour TWA et PWA'},
-    {label:'Service Worker sw.js', ok:paths.some(p=>p.includes('sw')), hint:'Requis pour le mode offline'},
-    {label:'style.css', ok:paths.some(p=>p.endsWith('.css')), hint:'Feuille de style'},
+  var paths = Object.keys(S.files);
+  var checks = [
+    {label:'Fichiers presents', ok:paths.length>0, hint:'Le projet contient des fichiers'},
+    {label:'index.html', ok:paths.some(function(p){return p.endsWith('.html');}), hint:'Fichier HTML principal'},
+    {label:'manifest.json', ok:paths.some(function(p){return p.endsWith('manifest.json');}), hint:'Requis pour TWA et PWA'},
+    {label:'Service Worker sw.js', ok:paths.some(function(p){return p.indexOf('sw')!==-1;}), hint:'Requis pour le mode offline'},
+    {label:'style.css', ok:paths.some(function(p){return p.endsWith('.css');}), hint:'Feuille de style'}
   ];
-  const score = checks.filter(c=>c.ok).length;
-  const el = document.getElementById('analysis-result');
-  el.innerHTML = checks.map(c=>`
-    <div class="chk-item">
-      <div class="chk-icon">${c.ok?'✅':'❌'}</div>
-      <div>
-        <div class="chk-label" style="color:${c.ok?'var(--green)':'var(--red)'}">${c.label}</div>
-        <div class="chk-hint">${c.hint}</div>
-      </div>
-    </div>
-  `).join('')+`
-    <div style="text-align:center;margin-top:8px">
-      <span class="chip ${score>=4?'chip-ok':score>=2?'chip-warn':'chip-err'}">
-        <span class="dot"></span> Score : ${score}/${checks.length}
-        ${score>=4?' — Excellent !':score>=2?' — Acceptable':' — Incomplet'}
-      </span>
-    </div>
-    ${score<4?`<button class="btn btn-ghost btn-full" onclick="autoFix()" style="margin-top:10px">🔧 Auto-corriger les fichiers manquants</button>`:''}
-  `;
+  var score = 0;
+  for(var i=0;i<checks.length;i++) if(checks[i].ok) score++;
+  var html = '';
+  for(var j=0;j<checks.length;j++){
+    var c = checks[j];
+    html += '<div class="chk-item"><div class="chk-icon">' + (c.ok?'✅':'❌') + '</div><div><div class="chk-label" style="color:' + (c.ok?'var(--green)':'var(--red)') + '">' + c.label + '</div><div class="chk-hint">' + c.hint + '</div></div></div>';
+  }
+  html += '<div style="text-align:center;margin-top:8px"><span class="chip ' + (score>=4?'chip-ok':score>=2?'chip-warn':'chip-err') + '"><span class="dot"></span> Score : ' + score + '/' + checks.length + (score>=4?' - Excellent !':score>=2?' - Acceptable':' - Incomplet') + '</span></div>';
+  if(score < 4) html += '<button class="btn btn-ghost btn-full" onclick="autoFix()" style="margin-top:10px">🔧 Auto-corriger</button>';
+  document.getElementById('analysis-result').innerHTML = html;
 }
 
 function autoFix(){
-  if(!Object.keys(S.files).some(p=>p.endsWith('manifest.json'))){
-    S.files['manifest.json']=JSON.stringify({
-      name:document.getElementById('c-name').value||'Mon App',
-      short_name:'MonApp',start_url:'/',scope:'/',display:'standalone',
-      theme_color:document.getElementById('c-theme').value||'#7c6eff',
-      background_color:'#0a0a14',
-      icons:[{src:'icon-192.png',sizes:'192x192',type:'image/png'}]
-    },null,2);
+  if(!Object.keys(S.files).some(function(p){return p.endsWith('manifest.json');})){
+    S.files['manifest.json'] = JSON.stringify({name:document.getElementById('c-name').value||'Mon App',short_name:'MonApp',start_url:'/',scope:'/',display:'standalone',theme_color:document.getElementById('c-theme').value||'#7c6eff',background_color:'#0a0a14',icons:[{src:'icon-192.png',sizes:'192x192',type:'image/png'}]},null,2);
   }
-  if(!Object.keys(S.files).some(p=>p.includes('sw'))){
-    S.files['sw.js']=`const C='nps-v1',F=['/','/index.html','/style.css','/app.js','/manifest.json'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(F))));
-self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
+  if(!Object.keys(S.files).some(function(p){return p.indexOf('sw')!==-1;})){
+    S.files['sw.js'] = "var C='nps-v1';self.addEventListener('install',function(e){e.waitUntil(caches.open(C).then(function(c){return c.addAll(['/','/index.html']);}));});self.addEventListener('fetch',function(e){e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request);}));});";
   }
-  if(!Object.keys(S.files).some(p=>p.endsWith('.html'))){
-    const name = document.getElementById('c-name').value||'Mon App';
-    S.files['index.html']=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${name}</title><link rel="manifest" href="manifest.json"></head><body><h1>${name}</h1><script>navigator.serviceWorker&&navigator.serviceWorker.register('sw.js')<\/script></body></html>`;
+  if(!Object.keys(S.files).some(function(p){return p.endsWith('.html');})){
+    var name = document.getElementById('c-name').value || 'Mon App';
+    S.files['index.html'] = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + name + '</title></head><body><h1>' + name + '</h1></body></html>';
   }
-  toast('✓ Fichiers manquants générés');
+  toast('Fichiers manquants generes');
   analyzeProject();
 }
 
@@ -1373,636 +1326,307 @@ self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r
 // METHOD SELECT
 // ════════════════════════════════
 function selMethod(id){
-  S.method=id;
-  var _mc=document.querySelectorAll('.mcard');for(var _mi=0;_mi<_mc.length;_mi++){var c=_mc[_mi];
-    var sel=c.id==='mc-'+id;
-    c.classList.toggle('sel',sel);
-    c.querySelector('.mcheck').textContent=sel?'\u2713':'';
+  S.method = id;
+  var mc = document.querySelectorAll('.mcard');
+  for(var i=0;i<mc.length;i++){
+    var sel = mc[i].id === 'mc-' + id;
+    mc[i].classList.toggle('sel', sel);
+    mc[i].querySelector('.mcheck').textContent = sel ? '\u2713' : '';
   }
 }
 
 // ════════════════════════════════
-// CONVERSION (réelle — via GitHub Actions + Bubblewrap)
+// PERMISSIONS
 // ════════════════════════════════
 function getSelectedPermissions(){
-  var _chk=document.querySelectorAll('.perm-item input[type=checkbox]:checked');var _rv=[];for(var _ci=0;_ci<_chk.length;_ci++){_rv.push(_chk[_ci].value);}return _rv;
+  var chk = document.querySelectorAll('.perm-item input[type=checkbox]:checked');
+  var rv = [];
+  for(var i=0;i<chk.length;i++) rv.push(chk[i].value);
+  return rv;
 }
 
-function termLine(term,text,cls){
-  const d=document.createElement('div');
-  d.className=`tl t${cls}`;
-  d.textContent=text;
+// ════════════════════════════════
+// TERMINAL
+// ════════════════════════════════
+function termLine(term, text, cls){
+  var d = document.createElement('div');
+  d.className = 'tl t' + cls;
+  d.textContent = text;
   term.appendChild(d);
-  term.scrollTop=term.scrollHeight;
+  term.scrollTop = term.scrollHeight;
 }
 
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
-async function githubApi(path, ghConfig, options={}){
-  const resp = await fetch(`https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}${path}`, {
-    ...options,
-    headers:{
-      'Accept':'application/vnd.github+json',
-      'Authorization':`Bearer ${ghConfig.token}`,
-      'X-GitHub-Api-Version':'2022-11-28',
-      ...(options.headers||{}),
-    },
-  });
-  return resp;
+// ════════════════════════════════
+// GITHUB API
+// ════════════════════════════════
+function githubApi(path, ghConfig, options){
+  options = options || {};
+  var hdrs = {
+    'Accept': 'application/vnd.github+json',
+    'Authorization': 'Bearer ' + ghConfig.token,
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+  if(options.headers){
+    for(var k in options.headers){ if(options.headers.hasOwnProperty(k)) hdrs[k] = options.headers[k]; }
+  }
+  var fetchOpts = { method: options.method || 'GET', headers: hdrs };
+  if(options.body) fetchOpts.body = options.body;
+  return fetch('https://api.github.com/repos/' + ghConfig.owner + '/' + ghConfig.repo + path, fetchOpts);
 }
 
-async function runConversion(){
+// ════════════════════════════════
+// CONVERSION
+// ════════════════════════════════
+function runConversion(){
   saveEditorSilent();
-  const name=document.getElementById('c-name').value.trim()||S.projectName||'MonApp';
-  const url=document.getElementById('c-url').value.trim();
-  const pkg=document.getElementById('c-pkg').value.trim()||'com.nps.'+name.toLowerCase().replace(/[^a-z0-9]/g,'');
-  if(!document.getElementById('c-pkg').value) document.getElementById('c-pkg').value=pkg;
-  const theme=document.getElementById('c-theme').value||'#7c6eff';
-  const sdk=document.getElementById('c-sdk').value||'23';
-  const perms=getSelectedPermissions();
-  const ghConfig=getGithubConfig();
+  var name = document.getElementById('c-name').value.trim() || S.projectName || 'MonApp';
+  var url = document.getElementById('c-url').value.trim();
+  var pkg = document.getElementById('c-pkg').value.trim() || ('com.nps.' + name.toLowerCase().replace(/[^a-z0-9]/g,''));
+  if(!document.getElementById('c-pkg').value) document.getElementById('c-pkg').value = pkg;
+  var theme = document.getElementById('c-theme').value || '#7c6eff';
+  var sdk = document.getElementById('c-sdk').value || '23';
+  var perms = getSelectedPermissions();
+  var ghConfig = getGithubConfig();
 
-  document.getElementById('conv-progress').style.display='block';
-  document.getElementById('conv-result').style.display='none';
-  document.getElementById('conv-progress').scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('conv-progress').style.display = 'block';
+  document.getElementById('conv-result').style.display = 'none';
+  document.getElementById('conv-progress').scrollIntoView({behavior:'smooth', block:'start'});
 
-  const term=document.getElementById('conv-term');
-  const bar=document.getElementById('pbar');
-  term.innerHTML='';
-  bar.style.width='0%';
-  bar.style.background='';
+  var term = document.getElementById('conv-term');
+  var bar = document.getElementById('pbar');
+  term.innerHTML = ''; bar.style.width = '0%'; bar.style.background = '';
 
-  termLine(term,'▶ Vérification de la configuration...','i');
-  await sleep(150);
+  termLine(term, 'Verification de la configuration...', 'i');
 
   if(!ghConfig || !ghConfig.owner || !ghConfig.repo || !ghConfig.token){
-    termLine(term,'✗ Aucune connexion GitHub configurée.','e');
-    termLine(term,'  Renseignez owner / repo / token dans la carte "🐙 Connexion GitHub"','i');
-    termLine(term,'  ci-dessus, puis cliquez "Enregistrer".','i');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
+    termLine(term, 'Aucune connexion GitHub configuree.', 'e');
+    bar.style.width='100%'; bar.style.background='var(--red)'; return;
   }
   if(!url){
-    termLine(term,'✗ Aucune URL de PWA renseignée.','e');
-    termLine(term,'  Le workflow GitHub Actions a besoin d\'une URL HTTPS publique','i');
-    termLine(term,'  pour que Bubblewrap puisse lire le manifest et builder l\'APK.','i');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
+    termLine(term, 'Aucune URL de PWA renseignee.', 'e');
+    bar.style.width='100%'; bar.style.background='var(--red)'; return;
   }
-  let parsed;
-  try{ parsed=new URL(url); }catch(e){ parsed=null; }
-  if(!parsed || parsed.protocol!=='https:'){
-    termLine(term,'✗ L\'URL doit être en HTTPS valide (ex: https://mon-site.com).','e');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
+  var parsed = null;
+  try{ parsed = new URL(url); } catch(e){ parsed = null; }
+  if(!parsed || parsed.protocol !== 'https:'){
+    termLine(term, "L'URL doit etre en HTTPS valide.", 'e');
+    bar.style.width='100%'; bar.style.background='var(--red)'; return;
   }
-  termLine(term,`✓ URL valide : ${url}`,'s');
-  termLine(term,`✓ Dépôt GitHub : ${ghConfig.owner}/${ghConfig.repo}`,'s');
-  bar.style.width='10%';
 
-  const buildId = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-  termLine(term,`▶ ID de build : ${buildId}`,'i');
-  termLine(term,`▶ Package : ${pkg} — Version : 1.0.0 — SDK min : ${sdk}`,'i');
-  termLine(term,`▶ Permissions : ${perms.length?perms.join(', '):'aucune'}`,'i');
+  termLine(term, 'URL valide : ' + url, 's');
+  termLine(term, 'Depot GitHub : ' + ghConfig.owner + '/' + ghConfig.repo, 's');
+  bar.style.width = '10%';
 
-  // Push HTML files to repo if WebView mode
-    if(S.method==='webview' && Object.keys(S.files||{}).length>0){
-      try{
-        await pushWebViewFiles(ghConfig, S.files, term);
-        // Give GitHub time to process the commit before triggering workflow
-        await sleep(3000);
-      }catch(e){
-        termLine(term,'✗ Erreur envoi fichiers: '+e.message,'e');
-        bar.style.width='100%'; bar.style.background='var(--red)';
-        return;
-      }
-    }
+  var buildId = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  termLine(term, 'ID build : ' + buildId, 'i');
+  termLine(term, 'Package : ' + pkg + ' SDK min : ' + sdk, 'i');
+  termLine(term, 'Permissions : ' + (perms.length ? perms.join(', ') : 'aucune'), 'i');
 
-    termLine(term,'▶ Déclenchement du workflow GitHub Actions...','i');
-  let dispatchResp;
-  try{
-    dispatchResp = await githubApi('/actions/workflows/build.yml/dispatches', ghConfig, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        ref: (ghConfig.branch||'main'),
-        inputs:{
-          app_name:name, package_id:pkg, pwa_url:url,
-          theme_color:theme, version_name:'1.0.0', min_sdk:sdk,
-          permissions:perms.join(','), build_id:buildId,
-        },
-        return_run_details:true,
-      }),
+  var pushPromise = Promise.resolve();
+  if(S.method === 'webview' && Object.keys(S.files || {}).length > 0){
+    pushPromise = pushWebViewFiles(ghConfig, S.files, term).then(function(){
+      return sleep(3000);
+    }).catch(function(e){
+      termLine(term, 'Erreur envoi fichiers: ' + e.message, 'e');
+      bar.style.width='100%'; bar.style.background='var(--red)';
+      throw e;
     });
-  }catch(e){
-    termLine(term,`✗ Erreur réseau : ${e.message}`,'e');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
   }
 
-  if(dispatchResp.status===404){
-    termLine(term,'✗ Workflow introuvable (404).','e');
-    termLine(term,'  Vérifiez que ".github/workflows/build.yml" existe bien sur la','i');
-    termLine(term,'  branche "${ghConfig.branch||'main'}" de votre dépôt.','i');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
-  }
-  if(dispatchResp.status===401 || dispatchResp.status===403){
-    termLine(term,'✗ Authentification refusée.','e');
-    termLine(term,'  Vérifiez que votre token a les scopes "repo" et "workflow",','i');
-    termLine(term,'  et qu\'il n\'est pas expiré.','i');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
-  }
-  if(!dispatchResp.ok && dispatchResp.status!==204){
-    const errText = await dispatchResp.text().catch(()=> '');
-    termLine(term,`✗ Erreur GitHub (${dispatchResp.status}) : ${errText.slice(0,200)}`,'e');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
-  }
-
-  termLine(term,'✓ Workflow déclenché avec succès.','s');
-  bar.style.width='20%';
-
-  // Récupérer l'ID du run : via return_run_details si dispo (200), sinon polling de la liste
-  let runId=null, runUrl=null;
-  if(dispatchResp.status===200){
-    try{
-      const data=await dispatchResp.json();
-      runId = data.id || data.run_id || (data.workflow_run && data.workflow_run.id) || null;
-      runUrl = data.html_url || (data.workflow_run && data.workflow_run.html_url) || null;
-    }catch(e){}
-  }
-  if(!runId){
-    termLine(term,'▶ Recherche du run déclenché (peut prendre quelques secondes)...','i');
-    for(let i=0;i<10 && !runId;i++){
-      await sleep(2000);
-      try{
-        const listResp = await githubApi(`/actions/workflows/build.yml/runs?per_page=5`, ghConfig);
-        if(listResp.ok){
-          const list = await listResp.json();
-          const candidate = (list.workflow_runs||[]).find(r=>
-            new Date(r.created_at).getTime() > Date.now()-2*60*1000
-          );
-          if(candidate){ runId=candidate.id; runUrl=candidate.html_url; }
-        }
-      }catch(e){}
+  pushPromise.then(function(){
+    termLine(term, 'Declenchement du workflow GitHub Actions...', 'i');
+    return githubApi('/actions/workflows/build.yml/dispatches', ghConfig, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        ref: ghConfig.branch || 'main',
+        inputs: {app_name:name, package_id:pkg, pwa_url:url, theme_color:theme, version_name:'1.0.0', min_sdk:sdk, permissions:perms.join(','), build_id:buildId}
+      })
+    });
+  }).then(function(dispatchResp){
+    if(dispatchResp.status === 404){ termLine(term, 'Workflow introuvable (404). Verifiez .github/workflows/build.yml', 'e'); bar.style.width='100%'; bar.style.background='var(--red)'; return Promise.reject('stop'); }
+    if(dispatchResp.status === 401 || dispatchResp.status === 403){ termLine(term, 'Authentification refusee. Verifiez scopes "repo" et "workflow".', 'e'); bar.style.width='100%'; bar.style.background='var(--red)'; return Promise.reject('stop'); }
+    if(!dispatchResp.ok && dispatchResp.status !== 204){
+      return dispatchResp.text().catch(function(){ return ''; }).then(function(errText){
+        termLine(term, 'Erreur GitHub (' + dispatchResp.status + ') : ' + errText.slice(0,200), 'e');
+        bar.style.width='100%'; bar.style.background='var(--red)'; return Promise.reject('stop');
+      });
     }
+    termLine(term, 'Workflow declenche avec succes.', 's');
+    bar.style.width = '20%';
+    return pollForRunId(ghConfig, buildId, term, bar, name, url, pkg, perms);
+  }).catch(function(e){
+    if(e && e !== 'stop' && e.message){ termLine(term, 'Erreur reseau : ' + e.message, 'e'); bar.style.width='100%'; bar.style.background='var(--red)'; }
+  });
+}
+
+function pollForRunId(ghConfig, buildId, term, bar, name, url, pkg, perms){
+  var attempts = 0;
+  function tryNext(){
+    if(attempts >= 10){
+      termLine(term, 'Workflow lance - impossible de recuperer le run ID automatiquement.', 'w');
+      termLine(term, "Ouvrez l'onglet Actions de votre depot GitHub.", 'i');
+      bar.style.width = '100%';
+      S.lastConfig = {name:name, url:url, pkg:pkg, perms:perms, ghConfig:{owner:ghConfig.owner, repo:ghConfig.repo}};
+      document.getElementById('conv-result').style.display = 'block';
+      return;
+    }
+    attempts++;
+    sleep(2000).then(function(){
+      return githubApi('/actions/workflows/build.yml/runs?per_page=5', ghConfig);
+    }).then(function(listResp){
+      if(!listResp.ok){ tryNext(); return; }
+      return listResp.json().then(function(list){
+        var runs = list.workflow_runs || [];
+        var candidate = null;
+        for(var i=0;i<runs.length;i++){
+          if(new Date(runs[i].created_at).getTime() > Date.now() - 2*60*1000){ candidate = runs[i]; break; }
+        }
+        if(candidate){
+          termLine(term, 'Run GitHub Actions #' + candidate.id + ' en cours.', 's');
+          termLine(term, 'URL : ' + (candidate.html_url || 'voir onglet Actions'), 'i');
+          bar.style.width = '30%';
+          pollRunStatus(candidate.id, candidate.html_url, ghConfig, term, bar, name, url, pkg, perms);
+        } else { tryNext(); }
+      });
+    }).catch(function(){ tryNext(); });
   }
+  tryNext();
+}
 
-  if(!runId){
-    termLine(term,'⚠ Workflow lancé mais impossible de récupérer son ID automatiquement.','w');
-    termLine(term,'  Ouvrez l\'onglet "Actions" de votre dépôt GitHub pour suivre','i');
-    termLine(term,'  l\'avancement et récupérer l\'APK une fois terminé.','i');
-    bar.style.width='100%';
-    S.lastConfig={name,url,pkg,perms,buildId,ghConfig:{owner:ghConfig.owner,repo:ghConfig.repo}};
-    document.getElementById('conv-result').style.display='block';
-    return;
-  }
-
-  termLine(term,`✓ Run GitHub Actions #${runId} en cours.`,'s');
-  termLine(term,`  Suivi en direct : ${runUrl||'(voir onglet Actions du dépôt)'}`,'i');
-  bar.style.width='30%';
-
-  // ── Polling réel avec étapes détaillées (toutes les 6s, jusqu'à ~12 min)
-  let status='queued', conclusion=null;
-  const maxAttempts=120;
-  const stepList=document.getElementById('step-list');
-  stepList.style.display='block';
-  stepList.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:6px">⏳ Attente des étapes GitHub Actions…</div>';
-  const renderedSteps={};
+function pollRunStatus(runId, runUrl, ghConfig, term, bar, name, url, pkg, perms){
+  var attempt = 0;
+  var stepList = document.getElementById('step-list');
+  stepList.style.display = 'block';
+  stepList.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Attente des etapes GitHub Actions...</div>';
 
   function renderStep(s){
-    const icon=s.conclusion==='success'?'✅':s.conclusion==='failure'?'❌':s.conclusion==='skipped'?'⏭️':s.status==='in_progress'?'▶️':'⏳';
-    const dur=s.started_at&&s.completed_at?Math.round((new Date(s.completed_at)-new Date(s.started_at))/1000)+'s':'';
-    const color=s.conclusion==='success'?'var(--green)':s.conclusion==='failure'?'var(--red)':s.status==='in_progress'?'var(--cyan)':'var(--muted)';
-    return `<div id="step-${s.number}" style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;margin-bottom:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)">
-      <span style="font-size:14px">${icon}</span>
-      <span style="font-size:12px;flex:1;color:${color}">${s.name}</span>
-      ${dur?'<span style="font-size:10px;color:var(--muted)">'+dur+'</span>':''}
-    </div>`;
+    var icon = s.conclusion==='success'?'✅':s.conclusion==='failure'?'❌':s.conclusion==='skipped'?'⏭️':s.status==='in_progress'?'▶️':'⏳';
+    var dur = (s.started_at && s.completed_at) ? Math.round((new Date(s.completed_at) - new Date(s.started_at)) / 1000) + 's' : '';
+    var color = s.conclusion==='success'?'var(--green)':s.conclusion==='failure'?'var(--red)':s.status==='in_progress'?'var(--cyan)':'var(--muted)';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;margin-bottom:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)">' +
+      '<span style="font-size:14px">' + icon + '</span><span style="font-size:12px;flex:1;color:' + color + '">' + s.name + '</span>' +
+      (dur ? '<span style="font-size:10px;color:var(--muted)">' + dur + '</span>' : '') + '</div>';
   }
 
-  for(let i=0;i<maxAttempts;i++){
-    await sleep(6000);
-    let runResp;
-    try{ runResp = await githubApi(`/actions/runs/${runId}`, ghConfig); }
-    catch(e){ continue; }
-    if(!runResp.ok) continue;
-    const run = await runResp.json();
-    status=run.status;
-    bar.style.width = status==='completed' ? '90%' : Math.min(30+i*0.8, 88)+'%';
-
-    // Fetch job steps for live display
-    try{
-      const jobsResp=await githubApi(`/actions/runs/${runId}/jobs`,ghConfig);
-      if(jobsResp.ok){
-        const jobsData=await jobsResp.json();
-        const jobs=jobsData.jobs||[];
-        if(jobs.length){
-          const job=jobs[0];
-          const steps=(job.steps||[]).filter(s=>s.name!=='Set up job'&&s.name!=='Complete job'||s.status!=='queued');
-          stepList.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:8px">🔨 Job: '+job.name+' — '+job.status+'</div>'+steps.map(renderStep).join('');
-        }
-      }
-    }catch(e){}
-
-    if(run.status==='completed'){
-      conclusion=run.conclusion;
-      break;
-    }
+  function poll(){
+    if(attempt >= 120){ termLine(term, 'Delai depasse. Verifiez GitHub Actions.', 'w'); bar.style.width='100%'; return; }
+    attempt++;
+    sleep(6000).then(function(){
+      return githubApi('/actions/runs/' + runId, ghConfig);
+    }).then(function(runResp){
+      if(!runResp.ok){ poll(); return; }
+      return runResp.json().then(function(run){
+        bar.style.width = run.status==='completed' ? '90%' : Math.min(30 + attempt * 0.8, 88) + '%';
+        githubApi('/actions/runs/' + runId + '/jobs', ghConfig).then(function(jobsResp){
+          if(!jobsResp.ok) return;
+          jobsResp.json().then(function(jobsData){
+            var jobs = jobsData.jobs || [];
+            if(!jobs.length) return;
+            var job = jobs[0];
+            var allSteps = job.steps || [];
+            var stepsHtml = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Job: ' + job.name + ' - ' + job.status + '</div>';
+            for(var i=0;i<allSteps.length;i++) stepsHtml += renderStep(allSteps[i]);
+            stepList.innerHTML = stepsHtml;
+          }).catch(function(){});
+        }).catch(function(){});
+        if(run.status === 'completed'){
+          if(run.conclusion !== 'success'){
+            termLine(term, 'Compilation echouee (statut: ' + (run.conclusion || run.status) + ').', 'e');
+            termLine(term, 'Logs : ' + (runUrl || ''), 'i');
+            bar.style.width='100%'; bar.style.background='var(--red)'; return;
+          }
+          termLine(term, 'Compilation terminee avec succes !', 's');
+          githubApi('/actions/runs/' + runId + '/artifacts', ghConfig).then(function(artResp){
+            var artifactUrl = null;
+            if(artResp.ok){
+              artResp.json().then(function(artData){
+                var arts = artData.artifacts || [];
+                if(arts.length) artifactUrl = 'https://github.com/' + ghConfig.owner + '/' + ghConfig.repo + '/actions/runs/' + runId;
+                bar.style.width='100%';
+                termLine(term, 'APK pret ! Telechargez depuis la page du run GitHub.', 's');
+                S.lastConfig = {name:name, url:url, pkg:pkg, perms:perms, runId:runId, runUrl:artifactUrl||runUrl, ghConfig:{owner:ghConfig.owner, repo:ghConfig.repo}};
+                document.getElementById('conv-result').style.display = 'block';
+                document.getElementById('conv-result').scrollIntoView({behavior:'smooth', block:'start'});
+              }).catch(function(){});
+            }
+          }).catch(function(){
+            bar.style.width='100%';
+            document.getElementById('conv-result').style.display = 'block';
+          });
+        } else { poll(); }
+      });
+    }).catch(function(){ poll(); });
   }
-
-  if(conclusion!=='success'){
-    termLine(term,`✗ La compilation a échoué ou n'a pas abouti (statut: ${conclusion||status}).`,'e');
-    termLine(term,`  Consultez les logs détaillés : ${runUrl||''}`,'i');
-    bar.style.width='100%'; bar.style.background='var(--red)';
-    return;
-  }
-
-  termLine(term,'✓ Compilation terminée avec succès !','s');
-  termLine(term,'▶ Récupération du lien de l\'APK (artifact)...','i');
-
-  let artifactUrl=null;
-  try{
-    const artResp = await githubApi(`/actions/runs/${runId}/artifacts`, ghConfig);
-    if(artResp.ok){
-      const artData = await artResp.json();
-      const found = (artData.artifacts||[]).find(a=>a.name===`apk-${buildId}`) || (artData.artifacts||[])[0];
-      if(found) artifactUrl = `https://github.com/${ghConfig.owner}/${ghConfig.repo}/actions/runs/${runId}`;
-    }
-  }catch(e){}
-
-  bar.style.width='100%';
-  termLine(term,'✅ APK prêt ! Téléchargez-le depuis la page du run GitHub (section','s');
-  termLine(term,'   "Artifacts" en bas de page — fichier .apk dans un ZIP).','s');
-
-  S.lastConfig={name,url,pkg,perms,buildId,runId,runUrl:artifactUrl||runUrl,ghConfig:{owner:ghConfig.owner,repo:ghConfig.repo}};
-  document.getElementById('conv-result').style.display='block';
-  document.getElementById('conv-result').scrollIntoView({behavior:'smooth',block:'start'});
+  poll();
 }
 
 // ════════════════════════════════
 // DOWNLOAD PACKAGE
 // ════════════════════════════════
-async function downloadPackage(){
+function downloadPackage(){
   saveEditorSilent();
-  const name=document.getElementById('c-name').value.trim()||S.projectName||'MonApp';
-  const url=document.getElementById('c-url').value.trim()||'https://votre-app.com';
-  const pkg=document.getElementById('c-pkg').value.trim()||'com.nps.'+name.toLowerCase().replace(/[^a-z0-9]/g,'');
-  const ver=document.getElementById('c-ver').value.trim()||'1.0.0';
-  const theme=document.getElementById('c-theme').value||'#7c6eff';
-  const sdk=document.getElementById('c-sdk').value||'23';
-
-  toast('Création du package...');
-  const zip=new JSZip();
-
-  // Fichiers web
-  Object.keys(S.files).forEach(p=>zip.file(`www/${p}`, S.files[p]||''));
-
-  const perms=getSelectedPermissions();
-  const permsXml = perms.map(p=>`    <uses-permission android:name="${p}"/>`).join('\n');
-
-  // AndroidManifest.xml
-  zip.file('android/app/src/main/AndroidManifest.xml',
-`<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="${pkg}"
-    android:versionCode="1"
-    android:versionName="${ver}">
-
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-${permsXml ? permsXml+'\n' : ''}
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="${name}"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme">
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="unspecified">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>`);
-
-  // build.gradle
-  zip.file('android/app/build.gradle',
-`plugins {
-    id 'com.android.application'
-}
-android {
-    compileSdkVersion 34
-    defaultConfig {
-        applicationId "${pkg}"
-        minSdkVersion ${sdk}
-        targetSdkVersion 34
-        versionCode 1
-        versionName "${ver}"
-    }
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
-        }
-    }
-}
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.webkit:webkit:1.8.0'
-    ${S.method==='twa'?"implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'":""}
-}`);
-
-  // MainActivity.java
-  const pkg_path=pkg.replace(/\./g,'/');
-  const mainActivity = S.method==='webview'
-? `package ${pkg};
-
-import android.app.Activity;
-import android.os.Bundle;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-
-public class MainActivity extends Activity {
-    private WebView webView;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        webView = new WebView(this);
-        setContentView(webView);
-
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccessFromFileURLs(true);
-        settings.setAllowUniversalAccessFromFileURLs(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
-        webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/www/index.html");
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
-    }
-}`
-: `package ${pkg};
-
-import android.app.Activity;
-import android.net.Uri;
-import android.os.Bundle;
-import com.google.androidbrowserhelper.trusted.TwaLauncher;
-
-public class MainActivity extends Activity {
-    private static final Uri LAUNCH_URL = Uri.parse("${url}");
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        new TwaLauncher(this).launch(LAUNCH_URL, null, null, null);
-    }
-}`;
-
-  zip.file(`android/app/src/main/java/${pkg_path}/MainActivity.java`, mainActivity);
-
-  // strings.xml
-  zip.file('android/app/src/main/res/values/strings.xml',
-`<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">${name}</string>
-</resources>`);
-
-  // styles.xml
-  zip.file('android/app/src/main/res/values/styles.xml',
-`<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">${theme}</item>
-        <item name="android:windowBackground">#0a0a14</item>
-    </style>
-</resources>`);
-
-  // root build.gradle
-  zip.file('android/build.gradle',
-`buildscript {
-    repositories { google(); mavenCentral() }
-    dependencies { classpath 'com.android.tools.build:gradle:8.0.2' }
-}
-allprojects {
-    repositories { google(); mavenCentral() }
-}`);
-
-  // settings.gradle
-  zip.file('android/settings.gradle', `include ':app'\nrootProject.name = "${name}"`);
-
-  // Icône et splash screen (fichiers réels fournis par l'utilisateur)
-  if(S.iconFile){
-    zip.file(`android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`, S.iconFile);
-    zip.file(`www/icon-512.png`, S.iconFile);
-  }
-  if(S.splashFile){
-    zip.file(`android/app/src/main/res/drawable/splash.png`, S.splashFile);
-    zip.file(`www/splash.png`, S.splashFile);
-  }
-
-  // twa-manifest.json (bubblewrap)
-  try{
-    const host = url.startsWith('http') ? new URL(url).hostname : url;
-    zip.file('twa-manifest.json', JSON.stringify({
-      packageId:pkg, host, name, launcherName:name.substring(0,12),
-      display:'standalone', themeColor:theme, backgroundColor:'#0a0a14',
-      startUrl:'/', minSdkVersion:parseInt(sdk), targetSdkVersion:34,
-      iconUrl: S.iconFile ? 'www/icon-512.png' : undefined,
-      permissions: perms,
-    },null,2));
-  }catch(e){}
-
-  // assetlinks.json
-  zip.file('.well-known/assetlinks.json', JSON.stringify([{
-    relation:['delegate_permission/common.handle_all_urls'],
-    target:{namespace:'android_app',package_name:pkg,
-      sha256_cert_fingerprints:['REMPLACEZ_PAR_VOTRE_EMPREINTE_SHA256']}
-  }],null,2));
-
-  // build.sh — script automatique
-  zip.file('build.sh',
-`#!/bin/bash
-# Script de build automatique — PWA-APK by NPS.NELSON
-# Généré par NPS.NELSON Game Studio
-
-echo "=== Build ${name} APK ==="
-
-# Option 1: Bubblewrap (si PWA hébergée sur HTTPS)
-# npm install -g @bubblewrap/cli
-# bubblewrap init --manifest ${url}/manifest.json
-# bubblewrap build
-
-# Option 2: Android Studio
-# Ouvrez le dossier android/ dans Android Studio
-# Build → Generate Signed Bundle/APK → APK
-
-# Option 3: Ligne de commande avec Gradle
-cd android
-./gradlew assembleRelease
-
-echo "=== APK généré dans android/app/build/outputs/apk/ ==="
-`);
-
-  // README
-  zip.file('README.md',
-`# ${name} — Package Android
-## Généré par PWA-APK by NPS.NELSON — NPS.NELSON Game Studio
-
-### Méthode utilisée : ${S.method.toUpperCase()}
-
----
-
-## 🚀 Option 1 : PWA-APK by NPS.NELSON (RECOMMANDÉ — directement dans le site)
-1. Hébergez votre PWA sur GitHub Pages / Netlify (gratuit + HTTPS)
-2. Dans PWA-APK by NPS.NELSON, page Convertir, connectez votre dépôt GitHub
-3. Entrez votre URL : ${url}
-4. Cliquez "Générer le package Android" — la compilation tourne sur GitHub Actions
-5. Téléchargez l'APK depuis le lien du run affiché dans le site
-
----
-
-## 🔧 Option 2 : Bubblewrap en ligne de commande (PC requis)
-\`\`\`bash
-npm install -g @bubblewrap/cli
-bubblewrap init --manifest ${url}/manifest.json
-bubblewrap build
-\`\`\`
-
----
-
-## 📱 Option 3 : Android Studio (WebView offline)
-1. Ouvrez le dossier \`android/\` dans Android Studio
-2. File → Open → android/
-3. Build → Generate Signed Bundle/APK → APK
-4. Signez avec votre keystore
-
----
-
-## 🔑 Générer un keystore
-\`\`\`bash
-keytool -genkey -v -keystore ${pkg}.keystore -alias key0 -keyalg RSA -keysize 2048 -validity 10000
-\`\`\`
-
----
-© 2026 NPS.NELSON Game Studio — DRC
-Email: nps.nelson@gmail.com | TikTok: @nps2026
-`);
-
-  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
-  saveAs(blob, name+'-android-package.zip');
-  toast(`✓ ${name}-android-package.zip téléchargé`);
+  var name = document.getElementById('c-name').value.trim() || S.projectName || 'MonApp';
+  var url = document.getElementById('c-url').value.trim() || 'https://votre-app.com';
+  var pkg = document.getElementById('c-pkg').value.trim() || ('com.nps.' + name.toLowerCase().replace(/[^a-z0-9]/g,''));
+  var ver = document.getElementById('c-ver').value.trim() || '1.0.0';
+  var theme = document.getElementById('c-theme').value || '#7c6eff';
+  var sdk = document.getElementById('c-sdk').value || '23';
+  var perms = getSelectedPermissions();
+  var permsXml = '';
+  for(var pi=0;pi<perms.length;pi++) permsXml += '    <uses-permission android:name="' + perms[pi] + '"/>\n';
+  toast('Creation du package...');
+  var zip = new JSZip();
+  var fkeys = Object.keys(S.files);
+  for(var i=0;i<fkeys.length;i++) zip.file('www/' + fkeys[i], S.files[fkeys[i]] || '');
+  var pkgPath = pkg.replace(/\./g, '/');
+  var mainJava = S.method === 'webview'
+    ? 'package ' + pkg + ';\n\nimport android.app.Activity;\nimport android.os.Bundle;\nimport android.webkit.WebSettings;\nimport android.webkit.WebView;\nimport android.webkit.WebViewClient;\n\npublic class MainActivity extends Activity {\n    private WebView webView;\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        webView = new WebView(this);\n        setContentView(webView);\n        WebSettings settings = webView.getSettings();\n        settings.setJavaScriptEnabled(true);\n        settings.setDomStorageEnabled(true);\n        settings.setAllowFileAccessFromFileURLs(true);\n        settings.setAllowUniversalAccessFromFileURLs(true);\n        webView.setWebViewClient(new WebViewClient());\n        webView.loadUrl(\"file:///android_asset/www/index.html\");\n    }\n    @Override\n    public void onBackPressed() {\n        if (webView.canGoBack()) webView.goBack();\n        else super.onBackPressed();\n    }\n}'
+    : 'package ' + pkg + ';\n\nimport android.app.Activity;\nimport android.net.Uri;\nimport android.os.Bundle;\nimport com.google.androidbrowserhelper.trusted.TwaLauncher;\n\npublic class MainActivity extends Activity {\n    private static final Uri LAUNCH_URL = Uri.parse(\"' + url + '\");\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        new TwaLauncher(this).launch(LAUNCH_URL, null, null, null);\n    }\n}';
+  zip.file('android/app/src/main/java/' + pkgPath + '/MainActivity.java', mainJava);
+  zip.file('android/app/src/main/res/values/strings.xml', '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">' + name + '</string>\n</resources>');
+  zip.generateAsync({type:'blob', compression:'DEFLATE'}).then(function(blob){
+    saveAs(blob, name + '-android-package.zip');
+    toast(name + '-android-package.zip telecharge');
+  });
 }
 
-// ════════════════════════════════
-// LIEN VERS LE RUN GITHUB ACTIONS
-// ════════════════════════════════
 function openLastRun(){
-  if(S.lastConfig && S.lastConfig.runUrl){
-    openExternalUrl(S.lastConfig.runUrl);
-  }else if(S.lastConfig && S.lastConfig.ghConfig){
-    openExternalUrl(`https://github.com/${S.lastConfig.ghConfig.owner}/${S.lastConfig.ghConfig.repo}/actions`);
-  }
+  if(S.lastConfig && S.lastConfig.runUrl){ openExternalUrl(S.lastConfig.runUrl); }
+  else if(S.lastConfig && S.lastConfig.ghConfig){ openExternalUrl('https://github.com/' + S.lastConfig.ghConfig.owner + '/' + S.lastConfig.ghConfig.repo + '/actions'); }
 }
 
 // ════════════════════════════════
-// GUIDE : TOKEN GITHUB & PARAMÈTRES
+// GUIDES
 // ════════════════════════════════
 function openTokenGuide(){
-  document.getElementById('modal-title').textContent='🔑 Créer votre token GitHub';
-  document.getElementById('modal-body').innerHTML=`
-    <div style="font-size:13px;line-height:1.7;color:var(--text)">
-      <p style="margin-bottom:12px;color:var(--muted)">
-        Ce token permet au site de déclencher la compilation sur <b>votre</b> dépôt GitHub.
-        Il reste uniquement sur votre appareil — personne d'autre ne le voit.
-      </p>
-      <div class="step"><div class="step-n">1</div><div>
-        <h4>Allez sur GitHub</h4>
-        <p>Ouvrez <b>github.com</b>, connectez-vous, puis touchez votre photo de profil (en haut à droite).</p>
-      </div></div>
-      <div class="step"><div class="step-n">2</div><div>
-        <h4>Settings → Developer settings</h4>
-        <p>Dans le menu, allez dans <b>Settings</b>, puis tout en bas du menu de gauche, <b>Developer settings</b>.</p>
-      </div></div>
-      <div class="step"><div class="step-n">3</div><div>
-        <h4>Personal access tokens → Tokens (classic)</h4>
-        <p>Cliquez <b>Personal access tokens</b>, puis <b>Tokens (classic)</b>.</p>
-      </div></div>
-      <div class="step"><div class="step-n">4</div><div>
-        <h4>Generate new token (classic)</h4>
-        <p>Donnez-lui un nom (ex: "nps-pwa-studio"), choisissez une expiration (90 jours conseillé).</p>
-      </div></div>
-      <div class="step"><div class="step-n">5</div><div>
-        <h4>Cochez les scopes "repo" et "workflow"</h4>
-        <p>Ce sont les <b>seules</b> cases nécessaires. Ne cochez rien d'autre.</p>
-      </div></div>
-      <div class="step"><div class="step-n">6</div><div>
-        <h4>Generate token</h4>
-        <p>Le token s'affiche <b>une seule fois</b> (commence par <code>ghp_</code>). Copiez-le immédiatement.</p>
-      </div></div>
-      <div class="step"><div class="step-n">7</div><div>
-        <h4>Collez-le dans PWA-APK by NPS.NELSON</h4>
-        <p>Page Convertir → carte "🐙 Connexion GitHub" → champ Token → Enregistrer.</p>
-      </div></div>
-      <div class="info warn" style="margin-top:14px">
-        <strong>⚠️ Important :</strong> ne partagez jamais ce token, ne le collez dans aucun
-        autre site, et révoquez-le immédiatement depuis GitHub si vous pensez qu'il a fuité.
-      </div>
-      <button class="btn btn-accent btn-full" style="margin-top:14px" onclick="closeModal()">J'ai compris</button>
-    </div>
-  `;
+  document.getElementById('modal-title').textContent = 'Creer votre token GitHub';
+  document.getElementById('modal-body').innerHTML =
+    '<div style="font-size:13px;line-height:1.7;color:var(--text)">' +
+    '<p style="margin-bottom:12px;color:var(--muted)">Ce token permet de declencher la compilation sur votre depot GitHub.</p>' +
+    '<div class="step"><div class="step-n">1</div><div><h4>Allez sur GitHub</h4><p>Connectez-vous, puis cliquez votre photo de profil.</p></div></div>' +
+    '<div class="step"><div class="step-n">2</div><div><h4>Settings → Developer settings</h4><p>Tout en bas du menu de gauche.</p></div></div>' +
+    '<div class="step"><div class="step-n">3</div><div><h4>Personal access tokens → Tokens (classic)</h4></div></div>' +
+    '<div class="step"><div class="step-n">4</div><div><h4>Generate new token (classic)</h4><p>Nom : "nps-pwa-studio", expiration : 90 jours.</p></div></div>' +
+    '<div class="step"><div class="step-n">5</div><div><h4>Cochez "repo" et "workflow"</h4></div></div>' +
+    '<div class="step"><div class="step-n">6</div><div><h4>Copiez le token (commence par ghp_)</h4></div></div>' +
+    '<button class="btn btn-accent btn-full" style="margin-top:14px" onclick="closeModal()">J\u0027ai compris</button>' +
+    '</div>';
   openModal();
 }
 
 function openParamsGuide(){
-  document.getElementById('modal-title').textContent='❓ Paramètres de la page Convertir';
-  document.getElementById('modal-body').innerHTML=`
-    <div style="font-size:13px;line-height:1.6;color:var(--text)">
-      <h4 style="color:var(--cyan);margin-bottom:4px">Nom de l'application</h4>
-      <p style="color:var(--muted);margin-bottom:12px">Le nom affiché sous l'icône sur le téléphone une fois l'APK installé.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">URL de la PWA</h4>
-      <p style="color:var(--muted);margin-bottom:12px">L'adresse HTTPS publique de votre site web (doit avoir un manifest.json accessible). C'est ce que l'APK va afficher.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Package ID</h4>
-      <p style="color:var(--muted);margin-bottom:12px">L'identifiant unique de l'app sur Android (ex: <code>com.nps.monapp</code>). Deux apps ne peuvent pas avoir le même.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Couleur thème</h4>
-      <p style="color:var(--muted);margin-bottom:12px">La couleur de la barre de statut et des éléments d'interface Android autour de votre app.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">SDK Android min.</h4>
-      <p style="color:var(--muted);margin-bottom:12px">La version minimale d'Android requise pour installer l'app. Plus bas = compatible avec plus d'appareils anciens.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Icône & Splash Screen</h4>
-      <p style="color:var(--muted);margin-bottom:12px">L'icône (idéalement 512×512 px) et l'image affichée au lancement de l'app, avant que le contenu charge.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Autorisations Android</h4>
-      <p style="color:var(--muted);margin-bottom:12px">Les permissions système que l'app pourra demander (caméra, position, etc). Cochez uniquement ce qui est réellement utilisé.</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Connexion GitHub (owner / repo / token)</h4>
-      <p style="color:var(--muted);margin-bottom:12px"><b>Owner</b> : votre nom d'utilisateur GitHub. <b>Repo</b> : le nom du dépôt contenant le workflow de compilation. <b>Token</b> : votre clé personnelle (voir le guide dédié).</p>
-
-      <h4 style="color:var(--cyan);margin-bottom:4px">Méthode de conversion</h4>
-      <p style="color:var(--muted);margin-bottom:12px"><b>TWA</b> : votre site en ligne, encapsulé dans un APK léger (recommandé). <b>WebView offline</b> : pour un projet local qui n'a pas besoin d'internet.</p>
-
-      <button class="btn btn-accent btn-full" style="margin-top:8px" onclick="closeModal()">Fermer</button>
-    </div>
-  `;
+  document.getElementById('modal-title').textContent = 'Parametres de la page Convertir';
+  document.getElementById('modal-body').innerHTML =
+    '<div style="font-size:13px;line-height:1.6;color:var(--text)">' +
+    '<h4 style="color:var(--cyan);margin-bottom:4px">Nom de l\u0027application</h4><p style="color:var(--muted);margin-bottom:12px">Affiche sous l\u0027icone sur le telephone.</p>' +
+    '<h4 style="color:var(--cyan);margin-bottom:4px">URL de la PWA</h4><p style="color:var(--muted);margin-bottom:12px">Adresse HTTPS publique (doit avoir un manifest.json).</p>' +
+    '<h4 style="color:var(--cyan);margin-bottom:4px">Package ID</h4><p style="color:var(--muted);margin-bottom:12px">Identifiant unique Android (ex: com.nps.monapp).</p>' +
+    '<h4 style="color:var(--cyan);margin-bottom:4px">Methode de conversion</h4><p style="color:var(--muted);margin-bottom:12px">TWA : site en ligne. WebView offline : HTML local.</p>' +
+    '<button class="btn btn-accent btn-full" style="margin-top:8px" onclick="closeModal()">Fermer</button>' +
+    '</div>';
   openModal();
 }
 
@@ -2010,244 +1634,192 @@ function openParamsGuide(){
 // NEW FILE MODAL
 // ════════════════════════════════
 function openNewFile(){
-  document.getElementById('modal-title').textContent='➕ Nouveau fichier';
-  document.getElementById('modal-body').innerHTML=`
-    <label>Nom du fichier</label>
-    <input type="text" id="nf-name" placeholder="mon-fichier.html" style="margin-bottom:12px">
-    <label>Type</label>
-    <select id="nf-type" onchange="setNFTemplate()" style="margin-bottom:12px">
-      <option value="html">HTML</option>
-      <option value="css">CSS</option>
-      <option value="js">JavaScript</option>
-      <option value="json">JSON</option>
-      <option value="empty">Vide</option>
-    </select>
-    <button class="btn btn-accent btn-full" onclick="createFile()">Créer le fichier</button>
-  `;
+  document.getElementById('modal-title').textContent = 'Nouveau fichier';
+  document.getElementById('modal-body').innerHTML =
+    '<label>Nom du fichier</label><input type="text" id="nf-name" placeholder="mon-fichier.html" style="margin-bottom:12px">' +
+    '<label>Type</label><select id="nf-type" style="margin-bottom:12px"><option value="html">HTML</option><option value="css">CSS</option><option value="js">JavaScript</option><option value="json">JSON</option><option value="empty">Vide</option></select>' +
+    '<button class="btn btn-accent btn-full" onclick="createFile()">Creer le fichier</button>';
   openModal();
-  setTimeout(()=>document.getElementById('nf-name').focus(),100);
+  setTimeout(function(){ var el=document.getElementById('nf-name'); if(el) el.focus(); }, 100);
 }
 
 function createFile(){
-  const name=document.getElementById('nf-name').value.trim();
-  const type=document.getElementById('nf-type').value;
-  if(!name){ toast('Entrez un nom','w'); return; }
-  const templates={
+  var name = document.getElementById('nf-name').value.trim();
+  var type = document.getElementById('nf-type').value;
+  if(!name){ toast('Entrez un nom', 'w'); return; }
+  var templates = {
     html:'<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <title>Page</title>\n</head>\n<body>\n  \n</body>\n</html>',
-    css:'/* Styles */\n* { margin: 0; padding: 0; box-sizing: border-box; }\nbody { font-family: system-ui, sans-serif; }',
-    js:'// JavaScript\nconsole.log(\'Chargé\');',
+    css:'/* Styles */\n* { margin: 0; padding: 0; box-sizing: border-box; }',
+    js:"// JavaScript\nconsole.log('Charge');",
     json:'{\n  "version": "1.0"\n}',
-    empty:'',
+    empty:''
   };
-  S.files[name]=templates[type]||'';
+  S.files[name] = templates[type] || '';
   closeModal();
   renderFileList();
   openFileEditor(name);
-  toast('✓ Fichier créé : '+name);
+  toast('Fichier cree : ' + name);
 }
 
 // ════════════════════════════════
 // MODAL
 // ════════════════════════════════
-function openModal(){document.getElementById('overlay').classList.add('open')}
-function closeModal(){document.getElementById('overlay').classList.remove('open')}
-document.getElementById('overlay').addEventListener('click',e=>{if(e.target===document.getElementById('overlay'))closeModal();});
+function openModal(){ document.getElementById('overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('overlay').addEventListener('click', function(e){
+  if(e.target === document.getElementById('overlay')) closeModal();
+});
 
 // ════════════════════════════════
 // TOAST
 // ════════════════════════════════
-let toastT;
-function toast(msg, type='s'){
+var toastT;
+function toast(msg, type){
+  type = type || 's';
   clearTimeout(toastT);
-  let el=document.getElementById('toast-el');
+  var el = document.getElementById('toast-el');
   if(!el){
-    el=document.createElement('div');
-    el.id='toast-el';
-    el.style.cssText='position:fixed;bottom:70px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:30px;font-size:13px;font-weight:700;z-index:9999;transition:opacity .3s;max-width:90vw;text-align:center;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    el = document.createElement('div'); el.id = 'toast-el';
+    el.style.cssText = 'position:fixed;bottom:70px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:30px;font-size:13px;font-weight:700;z-index:9999;transition:opacity .3s;max-width:90vw;text-align:center;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
     document.body.appendChild(el);
   }
-  el.textContent=msg;
-  el.style.background=type==='w'?'rgba(255,179,71,.95)':type==='e'?'rgba(255,92,122,.95)':'rgba(0,214,143,.95)';
-  el.style.color=type==='w'?'#07070e':'#fff';
-  el.style.opacity='1';
-  toastT=setTimeout(()=>el.style.opacity='0',2500);
+  el.textContent = msg;
+  el.style.background = type==='w'?'rgba(255,179,71,.95)':type==='e'?'rgba(255,92,122,.95)':'rgba(0,214,143,.95)';
+  el.style.color = type==='w'?'#07070e':'#fff';
+  el.style.opacity = '1';
+  toastT = setTimeout(function(){ el.style.opacity='0'; }, 2500);
 }
 
-
 // ════════════════════════════════
-// PRÉFÉRENCE CONFIRMATION QUITTER
+// PREFERENCES
 // ════════════════════════════════
 function saveQuitPref(checked){
-  localStorage.setItem('nps_quit_confirm', checked?'1':'0');
-  toast(checked ? '✓ Confirmation de sortie activée' : 'Confirmation de sortie désactivée', 's');
+  localStorage.setItem('nps_quit_confirm', checked ? '1' : '0');
+  toast(checked ? 'Confirmation de sortie activee' : 'Confirmation desactivee', 's');
 }
-// ════════════════════════════════
-// AUTO-FILL PKG FROM NAME
-// ════════════════════════════════
-document.addEventListener('DOMContentLoaded',()=>{
-  const nameIn=document.getElementById('c-name');
-  if(nameIn) nameIn.addEventListener('input',()=>{
-    const v=nameIn.value.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
-    document.getElementById('c-pkg').value='com.nps.'+(v||'myapp');
-  });
 
-  // Charger la préférence confirmation quitter
-  try{
-    const qc=document.getElementById('pref-quit-confirm');
-    if(qc) qc.checked = localStorage.getItem('nps_quit_confirm')!=='0';
-  }catch(e){}
-});
-
-  // ── BRANCH SELECTOR ──────────────────────────────
-  function openBranchDrop(){
-    document.getElementById('branch-drop').classList.add('open');
-  }
-  function setBranch(name){
-    const inp = document.getElementById('gh-branch');
-    inp.value = name; inp.readOnly = true;
-    inp.placeholder = '🌿 Choisir une branche…';
-    document.getElementById('branch-drop').classList.remove('open');
-  }
-  function editBranchCustom(){
-    const inp = document.getElementById('gh-branch');
-    inp.readOnly = false; inp.value = '';
-    inp.placeholder = 'Tapez le nom exact de votre branche…';
-    document.getElementById('branch-drop').classList.remove('open');
-    inp.focus();
-  }
-  document.addEventListener('click', e => {
-    if(!e.target.closest('#branch-wrap'))
-      var bd=document.getElementById('branch-drop');
-      if(bd) bd.classList.remove('open');
-  });
-  
-
-  
 // ════════════════════════════════
-// OPEN URL — compatible Android WebView
+// OPEN URL — Android WebView compatible
 // ════════════════════════════════
 function openExternalUrl(url){
   if(!url) return;
-  if(typeof AndroidBridge !== 'undefined' && AndroidBridge.openUrl){
+  if(typeof AndroidBridge !== 'undefined' && AndroidBridge && AndroidBridge.openUrl){
     AndroidBridge.openUrl(url);
   } else {
     window.open(url, '_blank');
   }
 }
 
-  // ════════════════════════════════
-  // TÉLÉCHARGEMENT DIRECT APK
-  // ════════════════════════════════
-  async function downloadApkDirect(){
-    const btn = document.getElementById('dlApkBtn');
-    const hint = document.getElementById('dl-hint');
-    const cfg = S.lastConfig;
-    const art = S.lastArtifact;
-    if(!art && !cfg){ toast('Lancez d\'abord une compilation'); return; }
-    const ghConfig = getGithubConfig();
-    if(!ghConfig){ toast('Config GitHub manquante'); return; }
-
-    // If we have a stored artifact, try direct download
-    if(art && art.archive_download_url){
-      if(btn) btn.textContent = '⏳ Téléchargement...';
-      try{
-        const resp = await fetch(art.archive_download_url, {
-          headers:{ 'Authorization':'Bearer '+ghConfig.token },
-          redirect:'follow'
-        });
-        if(resp.ok){
-          const blob = await resp.blob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = ((cfg&&cfg.name?cfg.name:'app')) + '-debug.zip';
-          document.body.appendChild(a); a.click();
-          setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
-          if(btn) btn.textContent = '✅ Téléchargé !';
-          if(hint) hint.textContent = 'ZIP téléchargé — ouvrir avec ZArchiver et lancer le .apk';
-          return;
-        }
-      }catch(e){}
-    }
-
-    // Fallback: try to find latest artifact for this run
-    if(cfg&&cfg.runId){
-      if(btn) btn.textContent = '⏳ Recherche de l\'APK...';
-      try{
-        const artResp = await githubApi(`/actions/runs/${cfg.runId}/artifacts`, ghConfig);
-        if(artResp.ok){
-          const artData = await artResp.json();
-          const found = artData.artifacts&&artData.artifacts[0];
-          if(found){
-            S.lastArtifact = found;
-            return downloadApkDirect(); // retry with stored artifact
-          }
-        }
-      }catch(e){}
-    }
-
-    // Final fallback: open GitHub page
-    if(btn) btn.textContent = '🐙 Ouvrir GitHub';
-    openLastRun();
+// ════════════════════════════════
+// DOWNLOAD APK DIRECT
+// ════════════════════════════════
+function downloadApkDirect(){
+  var btn = document.getElementById('dlApkBtn');
+  var hint = document.getElementById('dl-hint');
+  var cfg = S.lastConfig;
+  var art = S.lastArtifact;
+  if(!art && !cfg){ toast("Lancez d'abord une compilation"); return; }
+  var ghConfig = getGithubConfig();
+  if(!ghConfig){ toast('Config GitHub manquante'); return; }
+  if(art && art.archive_download_url){
+    if(btn) btn.textContent = 'Telechargement...';
+    fetch(art.archive_download_url, {headers:{'Authorization':'Bearer '+ghConfig.token}}).then(function(resp){
+      if(!resp.ok) throw new Error('Download failed');
+      return resp.blob();
+    }).then(function(blob){
+      var u = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = u; a.download = ((cfg && cfg.name ? cfg.name : 'app')) + '-debug.zip';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); }, 2000);
+      if(btn) btn.textContent = 'Telecharge !';
+      if(hint) hint.textContent = 'ZIP telecharge - ouvrir avec ZArchiver';
+    }).catch(function(){ openLastRun(); });
+    return;
   }
-
-  // ════════════════════════════════
-  // PUSH HTML FILES → REPO POUR WEBVIEW
-  // ════════════════════════════════
-  async function pushWebViewFiles(ghConfig, files, term){
-    const branch = ghConfig.branch||'main';
-    termLine(term,'▶ Envoi des fichiers vers le dépôt GitHub...','i');
-
-    // Get HEAD
-    const refR = await githubApi(`/git/refs/heads/${branch}`, ghConfig);
-    if(!refR.ok) throw new Error('Branche introuvable: '+branch);
-    const refData = await refR.json();
-    const headSha = refData.object.sha;
-
-    const commitR = await githubApi(`/git/commits/${headSha}`, ghConfig);
-    const baseTree = (await commitR.json()).tree.sha;
-
-    // Create blobs for each file
-    const treeItems = [];
-    var _fk=Object.keys(files);for(var _fi=0;_fi<_fk.length;_fi++){var path=_fk[_fi];var content=files[path];
-      if(!content) continue;
-      const b64 = btoa(unescape(encodeURIComponent(content)));
-      const blobR = await githubApi(`/git/blobs`, ghConfig, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ content: b64, encoding:'base64' })
+  if(cfg && cfg.runId){
+    if(btn) btn.textContent = "Recherche de l'APK...";
+    githubApi('/actions/runs/' + cfg.runId + '/artifacts', ghConfig).then(function(artResp){
+      if(!artResp.ok){ openLastRun(); return; }
+      return artResp.json().then(function(artData){
+        var found = artData.artifacts && artData.artifacts[0];
+        if(found){ S.lastArtifact = found; downloadApkDirect(); }
+        else { openLastRun(); }
       });
-      if(!blobR.ok) continue;
-      const blob = await blobR.json();
-      treeItems.push({ path:`app/src/main/assets/www/${path}`, mode:'100644', type:'blob', sha:blob.sha });
-      termLine(term,`  ✓ ${path} (${Math.round(content.length/1024)}KB)`,'s');
-    }
-
-    if(!treeItems.length) throw new Error('Aucun fichier à envoyer');
-
-    // Create tree → commit → push
-    const treeR = await githubApi('/git/trees', ghConfig,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ base_tree:baseTree, tree:treeItems })
-    });
-    const tree = await treeR.json();
-
-    const newCommitR = await githubApi('/git/commits', ghConfig,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ message:'⚡ WebView update via PWA-APK by NPS.NELSON', tree:tree.sha, parents:[headSha] })
-    });
-    const newCommit = await newCommitR.json();
-
-    const pushR = await githubApi(`/git/refs/heads/${branch}`, ghConfig,{
-      method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ sha:newCommit.sha, force:false })
-    });
-    if(!pushR.ok){
-      const err = await pushR.json().catch(()=>({}));
-      throw new Error('Push échoué: '+(err.message||pushR.status));
-    }
-    termLine(term,'✓ Fichiers envoyés dans app/src/main/assets/www/','s');
+    }).catch(function(){ openLastRun(); });
+    return;
   }
-  
+  if(btn) btn.textContent = 'Ouvrir GitHub';
+  openLastRun();
+}
+
+// ════════════════════════════════
+// PUSH WEBVIEW FILES
+// ════════════════════════════════
+function pushWebViewFiles(ghConfig, files, term){
+  var branch = ghConfig.branch || 'main';
+  termLine(term, 'Envoi des fichiers vers GitHub...', 'i');
+  var headSha, baseTree;
+  return githubApi('/git/refs/heads/' + branch, ghConfig).then(function(refR){
+    if(!refR.ok) throw new Error('Branche introuvable: ' + branch);
+    return refR.json();
+  }).then(function(refData){
+    headSha = refData.object.sha;
+    return githubApi('/git/commits/' + headSha, ghConfig);
+  }).then(function(commitR){
+    return commitR.json();
+  }).then(function(commitData){
+    baseTree = commitData.tree.sha;
+    var fkeys = Object.keys(files);
+    var treeItems = [];
+    var idx = 0;
+    function nextFile(){
+      if(idx >= fkeys.length){
+        if(!treeItems.length) throw new Error('Aucun fichier a envoyer');
+        return githubApi('/git/trees', ghConfig, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({base_tree:baseTree, tree:treeItems})
+        }).then(function(treeR){ return treeR.json(); }).then(function(tree){
+          return githubApi('/git/commits', ghConfig, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({message:'WebView update via PWA-APK by NPS.NELSON', tree:tree.sha, parents:[headSha]})
+          });
+        }).then(function(commitR){ return commitR.json(); }).then(function(newCommit){
+          return githubApi('/git/refs/heads/' + branch, ghConfig, {
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({sha:newCommit.sha, force:false})
+          });
+        }).then(function(pushR){
+          if(!pushR.ok) throw new Error('Push echoue: ' + pushR.status);
+          termLine(term, 'Fichiers envoyes avec succes.', 's');
+        });
+      }
+      var path = fkeys[idx++];
+      var content = files[path];
+      if(!content) return Promise.resolve().then(function(){ return nextFile(); });
+      var b64 = btoa(unescape(encodeURIComponent(content)));
+      return githubApi('/git/blobs', ghConfig, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({content:b64, encoding:'base64'})
+      }).then(function(blobR){
+        if(!blobR.ok) return;
+        return blobR.json().then(function(blob){
+          treeItems.push({path:'app/src/main/assets/www/'+path, mode:'100644', type:'blob', sha:blob.sha});
+          termLine(term, path + ' (' + Math.round(content.length/1024) + 'KB)', 's');
+        });
+      }).then(function(){ return nextFile(); }).catch(function(){ return nextFile(); });
+    }
+    return nextFile();
+  });
+}
+
+// ════════════════════════════════
+// CLICK EXTERIEUR — ferme dropdown
+// ════════════════════════════════
+document.addEventListener('click', function(e){
+  var bd = document.getElementById('branch-drop');
+  if(bd && !e.target.closest('#branch-wrap')) bd.classList.remove('open');
+});
 </script>
 </body>
 </html>

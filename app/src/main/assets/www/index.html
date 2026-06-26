@@ -2209,6 +2209,8 @@ function openAideMenu() {
 // ════════════════════════════════
 // CLICK EXTERIEUR — ferme dropdown
 // ════════════════════════════════
+// Final build trigger
+
 document.addEventListener('click', function(e){
   var bd = document.getElementById('branch-drop');
   if(bd && !e.target.closest('#branch-wrap')) bd.classList.remove('open');

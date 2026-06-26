@@ -975,8 +975,8 @@ const NAV_MAP = {
 // NAVIGATION
 // ════════════════════════════════
 function goPage(id){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
+  var _pg=document.querySelectorAll('.page');for(var _pi=0;_pi<_pg.length;_pi++){_pg[_pi].classList.remove('active');}
+  var _bn=document.querySelectorAll('.bnav');for(var _bi=0;_bi<_bn.length;_bi++){_bn[_bi].classList.remove('active');}
   const page = document.getElementById(PAGE_MAP[id]||'p-home');
   if(page) page.classList.add('active');
   const nav = document.getElementById(NAV_MAP[id]||'nav-home');
@@ -1374,18 +1374,18 @@ self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r
 // ════════════════════════════════
 function selMethod(id){
   S.method=id;
-  document.querySelectorAll('.mcard').forEach(c=>{
-    const sel=c.id==='mc-'+id;
+  var _mc=document.querySelectorAll('.mcard');for(var _mi=0;_mi<_mc.length;_mi++){var c=_mc[_mi];
+    var sel=c.id==='mc-'+id;
     c.classList.toggle('sel',sel);
-    c.querySelector('.mcheck').textContent=sel?'✓':'';
-  });
+    c.querySelector('.mcheck').textContent=sel?'\u2713':'';
+  }
 }
 
 // ════════════════════════════════
 // CONVERSION (réelle — via GitHub Actions + Bubblewrap)
 // ════════════════════════════════
 function getSelectedPermissions(){
-  return Array.from(document.querySelectorAll('.perm-item input[type=checkbox]:checked')).map(c=>c.value);
+  var _chk=document.querySelectorAll('.perm-item input[type=checkbox]:checked');var _rv=[];for(var _ci=0;_ci<_chk.length;_ci++){_rv.push(_chk[_ci].value);}return _rv;
 }
 
 function termLine(term,text,cls){
@@ -2208,7 +2208,7 @@ function openExternalUrl(url){
 
     // Create blobs for each file
     const treeItems = [];
-    for(const [path, content] of Object.entries(files)){
+    var _fk=Object.keys(files);for(var _fi=0;_fi<_fk.length;_fi++){var path=_fk[_fi];var content=files[path];
       if(!content) continue;
       const b64 = btoa(unescape(encodeURIComponent(content)));
       const blobR = await githubApi(`/git/blobs`, ghConfig, {

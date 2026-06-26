@@ -419,8 +419,12 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
       </div>
       <div id="file-list"></div>
       <div class="btn-row" style="margin-top:4px">
-        <button class="btn btn-ghost" onclick="openNewFile()" style="flex:1">➕ Nouveau fichier</button>
+        <button class="btn btn-ghost" onclick="openNewFile()" style="flex:1">➕ Nouveau</button>
         <button class="btn btn-ghost" onclick="goPage('import')" style="flex:1">📦 Importer</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn btn-cyan" onclick="exportZip()" style="flex:1">⬇️ Tout en ZIP</button>
+        <button class="btn btn-accent" onclick="compileFromEditor()" style="flex:1">🚀 Compiler APK</button>
       </div>
     </div>
   </div>
@@ -710,6 +714,15 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
 
   <!-- PAGE : GUIDE -->
   <div class="page" id="p-guide">
+
+    <!-- CARTE : AIDE & CONTACT -->
+    <div class="card" style="margin-bottom:10px;background:linear-gradient(135deg,#1a2a1a,#0d1f0d);border-color:var(--green)">
+      <div class="card-title" style="color:var(--green)">❓ AIDE &amp; Contact NPS.NELSON</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        Besoin d'aide pour utiliser PWA-APK Studio ? Contactez NPS.NELSON directement.
+      </p>
+      <button class="btn btn-green btn-full" onclick="openAideMenu()" style="font-weight:700">💬 Ouvrir le menu AIDE</button>
+    </div>
 
     <div class="card" style="margin-bottom:10px">
   <div class="card-title">⚙️ Préférences</div>
@@ -2124,6 +2137,74 @@ function runAutoMethod(method) {
 
 function runMethod1() { runAutoMethod(1); }
 function runMethod2() { runAutoMethod(2); }
+
+// ════════════════════════════════
+// COMPILER DEPUIS L'EDITEUR
+// ════════════════════════════════
+function compileFromEditor() {
+  saveEditorSilent();
+  var fileCount = Object.keys(S.files).length;
+  if (!fileCount) { toast('Aucun fichier dans le projet', 'w'); return; }
+  var savedToken = document.getElementById('m1-token').value.trim();
+  var savedName  = document.getElementById('c-name').value.trim() || S.projectName || '';
+  document.getElementById('modal-title').textContent = 'Compiler APK depuis l\'editeur';
+  document.getElementById('modal-body').innerHTML =
+    '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">' +
+      fileCount + ' fichier(s) du projet seront envoyes sur GitHub et compiles en APK.' +
+    '</p>' +
+    '<label>Nom de l\'app</label>' +
+    '<input type="text" id="compile-name-inp" placeholder="MonApplication" value="' + savedName + '" style="margin-bottom:10px">' +
+    '<label>Token GitHub (scopes : <b>repo</b> + <b>workflow</b>)</label>' +
+    '<input type="password" id="compile-token-inp" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" value="' + savedToken + '" style="margin-bottom:14px">' +
+    '<button class="btn btn-accent btn-full" onclick="doCompileFromEditor()">🚀 Lancer la compilation</button>';
+  openModal();
+}
+
+function doCompileFromEditor() {
+  var token   = document.getElementById('compile-token-inp').value.trim();
+  var appName = document.getElementById('compile-name-inp').value.trim();
+  if (!token) { toast('Entrez votre token GitHub', 'w'); return; }
+  if (!appName) appName = S.projectName || 'MonApp';
+  // Remplir les champs de la methode 1 avec les valeurs saisies
+  document.getElementById('m1-token').value = token;
+  document.getElementById('c-name').value   = appName;
+  var pkgSafe = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!document.getElementById('c-pkg').value.trim()) {
+    document.getElementById('c-pkg').value = 'com.nps.' + pkgSafe;
+  }
+  // Copier S.files vers m1Files pour que runAutoMethod(1) les utilise
+  m1Files = {};
+  var keys = Object.keys(S.files);
+  for (var i = 0; i < keys.length; i++) {
+    m1Files[keys[i]] = S.files[keys[i]];
+  }
+  closeModal();
+  // Basculer sur Methode 1 (ZIP->APK) et lancer
+  switchMethod(1);
+  goPage('convert');
+  setTimeout(function() { runMethod1(); }, 350);
+}
+
+// ════════════════════════════════
+// MENU AIDE & CONTACT
+// ════════════════════════════════
+function openAideMenu() {
+  document.getElementById('modal-title').textContent = 'Aide & Contact NPS.NELSON';
+  document.getElementById('modal-body').innerHTML =
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">' +
+      'Besoin d\'aide avec PWA-APK Studio ?<br>Contactez NPS.NELSON directement :' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button class="btn btn-green btn-full" onclick="openExternalUrl(\'https://wa.me/243000000000\');closeModal()">' +
+        '💬 WhatsApp Direct</button>' +
+      '<button class="btn btn-green btn-full" onclick="openExternalUrl(\'https://whatsapp.com/channel/0029Vb8AxMhEAKWFtOKdvq0s\');closeModal()">' +
+        '📢 Chaine WhatsApp NPS.NELSON</button>' +
+      '<button class="btn btn-ghost btn-full" onclick="openExternalUrl(\'mailto:nelsonpataule11@gmail.com\');closeModal()">' +
+        '📧 nelsonpataule11@gmail.com</button>' +
+    '</div>' +
+    '<button class="btn btn-ghost btn-full" onclick="closeModal()" style="margin-top:12px">Fermer</button>';
+  openModal();
+}
 
 // ════════════════════════════════
 // CLICK EXTERIEUR — ferme dropdown

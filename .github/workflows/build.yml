@@ -74,6 +74,12 @@ jobs:
           sed -i "s|namespace 'com.nps.pwa.studio'|namespace '$PKG'|g" app/build.gradle || true
           sed -i "s|applicationId \"com.nps.pwa.studio\"|applicationId \"$PKG\"|g" app/build.gradle || true
           sed -i "s|versionName \"1.0\"|versionName \"$VER\"|g" app/build.gradle || true
+          
+          # Forcer AndroidX et Jetifier (sans espaces, obligatoire)
+          sed -i "/android.useAndroidX/d" gradle.properties 2>/dev/null || true
+          sed -i "/android.enableJetifier/d" gradle.properties 2>/dev/null || true
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
           echo "✅ Paramètres appliqués"
 
       - name: 6. Télécharger Gradle Wrapper JAR

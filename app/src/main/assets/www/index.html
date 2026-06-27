@@ -435,7 +435,6 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <div id="ed-filename" style="font-family:var(--mono);font-size:13px;color:var(--cyan);font-weight:bold;flex:1">—</div>
         <button class="hbtn" onclick="saveEditor()" style="font-size:12px">💾 Sauv.</button>
-        <button class="hbtn" onclick="downloadEditorZip()" style="font-size:12px">📦 ZIP</button>
         <button class="hbtn primary" onclick="togglePreview()" style="font-size:12px">👁️ Aperçu</button>
       </div>
       <div class="editor-toolbar" id="ed-toolbar">
@@ -702,7 +701,18 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
         <h3>Build envoyé à GitHub Actions</h3>
         <p>La compilation tourne sur les serveurs GitHub.<br>
         APK disponible dans <b>Actions → votre run → Artifacts</b>.</p>
-        
+        <div id="auto-repo-link" style="display:none;margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Dépôt créé automatiquement :</div>
+          <button class="btn btn-cyan btn-full" id="auto-repo-btn" onclick="openLastRun()">🐙 Ouvrir le dépôt GitHub</button>
+        </div>
+        <div id="direct-dl-area" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)">
+          <button class="btn btn-accent btn-full" id="dlApkBtn" onclick="downloadApkDirect()">⬇️ Télécharger mon APK</button>
+          <p id="dl-hint" style="font-size:11px;color:var(--muted);margin-top:8px">L'APK sera téléchargé dans votre dossier Téléchargements</p>
+        </div>
+        <div class="btn-row" style="justify-content:center;margin-top:12px">
+          <button class="btn btn-ghost" onclick="openLastRun()">🐙 Voir sur GitHub</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1770,50 +1780,47 @@ function openExternalUrl(url){
 // DOWNLOAD APK DIRECT
 // ════════════════════════════════
 function downloadApkDirect(){
-    var btn = document.getElementById('dlApkBtn');
-    var cfg = S.lastConfig;
-    if(!cfg){ toast("Lancez d'abord une compilation"); return; }
-    var ghConfig = getGithubConfig() || cfg.ghConfig;
-    if(!ghConfig){ toast('Token GitHub manquant'); return; }
-    var ghOwner = ghConfig.owner || 'faustinpataule12-art';
-    var ghRepo = ghConfig.repo || 'PWA-APK-Studio-v2';
-    if(btn) btn.textContent = 'Recherche de la Release...';
-    fetch('https://api.github.com/repos/' + ghOwner + '/' + ghRepo + '/releases/latest', {
-      headers: {'Authorization': 'Bearer ' + ghConfig.token, 'Accept': 'application/vnd.github.v3+json'}
-    }).then(function(r){ return r.json(); }).then(function(release){
-      if(!release || !release.assets || !release.assets.length){
-        toast('APK non trouve dans les Releases', 'w');
-        if(btn) btn.textContent = '⬇️ Telecharger mon APK';
-        return;
-      }
-      var apkAsset = null;
-      for(var i=0; i<release.assets.length; i++){
-        if(release.assets[i].name.endsWith('.apk')){ apkAsset = release.assets[i]; break; }
-      }
-      if(!apkAsset){
-        toast('Fichier APK non trouve', 'w');
-        if(btn) btn.textContent = '⬇️ Telecharger mon APK';
-        return;
-      }
-      var downloadUrl = apkAsset.browser_download_url;
-      var fileName = apkAsset.name;
-      if(typeof AndroidBridge !== 'undefined' && AndroidBridge.downloadFile){
-        AndroidBridge.downloadFile(downloadUrl, fileName, '');
-        if(btn) btn.textContent = 'Telechargement lance !';
-        toast('Telechargement de ' + fileName + '...');
-      } else {
-        var a = document.createElement('a');
-        a.href = downloadUrl; a.download = fileName; a.target = '_blank';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        if(btn) btn.textContent = 'Telechargement lance !';
-      }
-    }).catch(function(e){
-      toast('Erreur: ' + e.message, 'e');
-      if(btn) btn.textContent = '⬇️ Telecharger mon APK';
-    });
+  var btn = document.getElementById('dlApkBtn');
+  var hint = document.getElementById('dl-hint');
+  var cfg = S.lastConfig;
+  var art = S.lastArtifact;
+  if(!cfg){ toast("Lancez d'abord une compilation"); return; }
+  var ghConfig = getGithubConfig() || cfg.ghConfig;
+  if(!ghConfig || !ghConfig.token){ toast('Token GitHub manquant'); return; }
+
+  if(art && art.archive_download_url){
+    var fileName = (cfg.name || 'app').replace(/[^a-z0-9]/gi, '_') + '-debug.zip';
+    if(typeof AndroidBridge !== 'undefined' && AndroidBridge.downloadFile){
+      AndroidBridge.downloadFile(art.archive_download_url, fileName, ghConfig.token);
+      if(btn) btn.textContent = 'Téléchargement lancé !';
+    } else {
+      if(btn) btn.textContent = 'Préparation...';
+      fetch(art.archive_download_url, {headers:{'Authorization':'Bearer '+ghConfig.token}}).then(function(r){ return r.blob(); }).then(function(b){
+        var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download=fileName; a.click();
+      });
+    }
+    return;
   }
 
-  
+  if(cfg.runId){
+    if(btn) btn.textContent = "Recherche de l'APK...";
+    githubApi('/actions/runs/' + cfg.runId + '/artifacts', ghConfig).then(function(r){
+      if(!r.ok) throw new Error('Artifacts non trouvés');
+      return r.json();
+    }).then(function(data){
+      var found = data.artifacts && data.artifacts[0];
+      if(found){
+        S.lastArtifact = found;
+        document.getElementById('direct-dl-area').style.display = 'block';
+        downloadApkDirect();
+      } else {
+        toast('Artifact non encore prêt, réessayez dans 10s', 'w');
+        if(btn) btn.textContent = '⬇️ Réessayer le téléchargement';
+      }
+    }).catch(function(){ toast('Erreur API GitHub', 'e'); });
+  }
+}
+
 // ════════════════════════════════
 // PUSH WEBVIEW FILES
 // ════════════════════════════════
@@ -2216,27 +2223,6 @@ document.addEventListener('click', function(e){
   var bd = document.getElementById('branch-drop');
   if(bd && !e.target.closest('#branch-wrap')) bd.classList.remove('open');
 });
-
-  // ════════════════════════════════
-  // EXPORT ZIP EDITEUR
-  // ════════════════════════════════
-  function downloadEditorZip(){
-    if(!Object.keys(S.files).length){ toast('Aucun fichier a zipper', 'w'); return; }
-    saveEditorSilent();
-    toast('Compression en cours...');
-    var zip = new JSZip();
-    var keys = Object.keys(S.files);
-    for(var i=0; i<keys.length; i++){ zip.file(keys[i], S.files[keys[i]] || ''); }
-    var name = (S.projectName || 'projet') + '.zip';
-    zip.generateAsync({type:'blob', compression:'DEFLATE'}).then(function(blob){
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = name;
-      document.body.appendChild(a); a.click();
-      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-      toast(name + ' telecharge');
-    }).catch(function(e){ toast('Erreur ZIP: ' + e.message, 'w'); });
-  }
-  </script>
+</script>
 </body>
 </html>

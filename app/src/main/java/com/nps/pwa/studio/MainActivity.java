@@ -46,7 +46,25 @@ public class MainActivity extends Activity {
                     } catch (Exception ignored) {}
                 }
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        }
+
+          @JavascriptInterface
+          public void downloadZipBase64(String base64Content, String fileName) {
+              try {
+                  byte[] bytes = android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT);
+                  java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                  dir.mkdirs();
+                  java.io.File file = new java.io.File(dir, fileName);
+                  java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
+                  fos.write(bytes);
+                  fos.close();
+                  android.content.ContentValues values = new android.content.ContentValues();
+                  values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName);
+                  Toast.makeText(MainActivity.this, fileName + " enregistre dans Telechargements !", Toast.LENGTH_LONG).show();
+              } catch (Exception e) {
+                  Toast.makeText(MainActivity.this, "Erreur ZIP: " + e.getMessage(), Toast.LENGTH_LONG).show();
+              }
+          } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             requestPermissions(new String[]{
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE

@@ -41,6 +41,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: 1. Récupération du code source
         uses: actions/checkout@v4
@@ -83,7 +85,7 @@ jobs:
               printf "%s" "$IC_B64" | base64 -d > "app/src/main/res/$DIR/ic_launcher.png"
             fi
           done
-          # Forcer AndroidX et Jetifier (sans espaces, obligatoire)
+          # Forcer AndroidX et Jetifier
           sed -i "/android.useAndroidX/d" gradle.properties 2>/dev/null || true
           sed -i "/android.enableJetifier/d" gradle.properties 2>/dev/null || true
           echo "android.useAndroidX=true" >> gradle.properties
@@ -102,14 +104,31 @@ jobs:
       - name: 8. Compilation APK Debug
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: 9. Publication APK
+      - name: 9. Publication APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk-${{ github.event.inputs.build_id || 'latest' }}
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: 10. Infos du build
+      - name: 10. Créer Release GitHub
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.event.inputs.build_id || github.run_number }}
+          name: "Release ${{ github.event.inputs.app_name }} v${{ github.event.inputs.version_name }}"
+          files: app/build/outputs/apk/debug/*.apk
+          body: |
+            Nouveau build généré via PWA-APK Studio.
+            App: ${{ github.event.inputs.app_name }}
+            Version: ${{ github.event.inputs.version_name }}
+            Package: ${{ github.event.inputs.package_id }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 11. Infos du build
         run: |
           echo "=== Build terminé avec succès ==="
           echo "App: ${{ github.event.inputs.app_name || 'PWA-APK Studio' }}"

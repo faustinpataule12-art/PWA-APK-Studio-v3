@@ -419,12 +419,8 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
       </div>
       <div id="file-list"></div>
       <div class="btn-row" style="margin-top:4px">
-        <button class="btn btn-ghost" onclick="openNewFile()" style="flex:1">➕ Nouveau</button>
+        <button class="btn btn-ghost" onclick="openNewFile()" style="flex:1">➕ Nouveau fichier</button>
         <button class="btn btn-ghost" onclick="goPage('import')" style="flex:1">📦 Importer</button>
-      </div>
-      <div class="btn-row" style="margin-top:6px">
-        <button class="btn btn-cyan" onclick="exportZip()" style="flex:1">⬇️ Tout en ZIP</button>
-        <button class="btn btn-accent" onclick="compileFromEditor()" style="flex:1">🚀 Compiler APK</button>
       </div>
     </div>
   </div>
@@ -702,15 +698,10 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
         <p>La compilation tourne sur les serveurs GitHub.<br>
         APK disponible dans <b>Actions → votre run → Artifacts</b>.</p>
         <div id="auto-repo-link" style="display:none;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Dépôt créé automatiquement :</div>
-          <button class="btn btn-cyan btn-full" id="auto-repo-btn" onclick="openLastRun()">🐙 Ouvrir le dépôt GitHub</button>
+          <button class="btn btn-accent btn-full" id="auto-repo-btn" onclick="openLastRun()">📥 Télécharger l'APK</button>
         </div>
-        <div id="direct-dl-area" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)">
-          <button class="btn btn-accent btn-full" id="dlApkBtn" onclick="downloadApkDirect()">⬇️ Télécharger mon APK</button>
-          <p id="dl-hint" style="font-size:11px;color:var(--muted);margin-top:8px">L'APK sera téléchargé dans votre dossier Téléchargements</p>
-        </div>
-        <div class="btn-row" style="justify-content:center;margin-top:12px">
-          <button class="btn btn-ghost" onclick="openLastRun()">🐙 Voir sur GitHub</button>
+        <div class="btn-row" id="run-btn-row" style="justify-content:center">
+          <button class="btn btn-accent btn-full" onclick="openLastRun()">📥 Télécharger l'APK</button>
         </div>
       </div>
     </div>
@@ -718,15 +709,6 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
 
   <!-- PAGE : GUIDE -->
   <div class="page" id="p-guide">
-
-    <!-- CARTE : AIDE & CONTACT -->
-    <div class="card" style="margin-bottom:10px;background:linear-gradient(135deg,#1a2a1a,#0d1f0d);border-color:var(--green)">
-      <div class="card-title" style="color:var(--green)">❓ AIDE &amp; Contact NPS.NELSON</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
-        Besoin d'aide pour utiliser PWA-APK Studio ? Contactez NPS.NELSON directement.
-      </p>
-      <button class="btn btn-green btn-full" onclick="openAideMenu()" style="font-weight:700">💬 Ouvrir le menu AIDE</button>
-    </div>
 
     <div class="card" style="margin-bottom:10px">
   <div class="card-title">⚙️ Préférences</div>
@@ -848,7 +830,7 @@ code{background:var(--s1);padding:2px 7px;border-radius:5px;font-family:var(--mo
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Game Studio & Development — DRC</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
         <a href="mailto:nps.nelson@gmail.com" style="color:var(--muted);font-size:12px;text-decoration:none">📧 Email</a>
-        <a href="https://wa.me/243981083202" style="color:var(--muted);font-size:12px;text-decoration:none">💬 WhatsApp</a>
+        <a href="https://wa.me/243000000000" style="color:var(--muted);font-size:12px;text-decoration:none">💬 WhatsApp</a>
         <a href="https://tiktok.com/@nps2026" style="color:var(--muted);font-size:12px;text-decoration:none">🎵 @nps2026</a>
         <a href="https://facebook.com" style="color:var(--muted);font-size:12px;text-decoration:none">📘 Facebook</a>
       </div>
@@ -1608,14 +1590,22 @@ function pollRunStatus(runId, runUrl, ghConfig, term, bar, name, url, pkg, perms
             if(artResp.ok){
               artResp.json().then(function(artData){
                 var arts = artData.artifacts || [];
-                if(arts.length) artifactUrl = 'https://github.com/' + ghConfig.owner + '/' + ghConfig.repo + '/actions/runs/' + runId;
+                if(arts.length) {
+                  artifactUrl = 'https://github.com/' + ghConfig.owner + '/' + ghConfig.repo + '/releases/latest';
+                }
                 bar.style.width='100%';
-                termLine(term, 'APK pret ! Telechargez depuis la page du run GitHub.', 's');
-                S.lastConfig = {name:name, url:url, pkg:pkg, perms:perms, runId:runId, runUrl:artifactUrl||runUrl, ghConfig:ghConfig};
+                termLine(term, 'APK prêt ! Vous pouvez le télécharger ci-dessous.', 's');
+                S.lastConfig = {name:name, url:url, pkg:pkg, perms:perms, runId:runId, runUrl:artifactUrl||runUrl, ghConfig:{owner:ghConfig.owner, repo:ghConfig.repo}};
                 document.getElementById('conv-result').style.display = 'block';
-                document.getElementById('direct-dl-area').style.display = 'block';
+                // Masquer les mentions de GitHub dans le résultat final
+                var resultBox = document.getElementById('conv-result');
+                if(resultBox) {
+                  var h3 = resultBox.querySelector('h3');
+                  if(h3) h3.textContent = 'Compilation terminée !';
+                  var p = resultBox.querySelector('p');
+                  if(p) p.innerHTML = 'Votre APK est prêt à être installé sur votre appareil.';
+                }
                 document.getElementById('conv-result').scrollIntoView({behavior:'smooth', block:'start'});
-                setTimeout(function(){ downloadApkDirect(); }, 1000);
               }).catch(function(){});
             }
           }).catch(function(){
@@ -1784,41 +1774,39 @@ function downloadApkDirect(){
   var hint = document.getElementById('dl-hint');
   var cfg = S.lastConfig;
   var art = S.lastArtifact;
-  if(!cfg){ toast("Lancez d'abord une compilation"); return; }
-  var ghConfig = getGithubConfig() || cfg.ghConfig;
-  if(!ghConfig || !ghConfig.token){ toast('Token GitHub manquant'); return; }
-
+  if(!art && !cfg){ toast("Lancez d'abord une compilation"); return; }
+  var ghConfig = getGithubConfig();
+  if(!ghConfig){ toast('Config GitHub manquante'); return; }
   if(art && art.archive_download_url){
-    var fileName = (cfg.name || 'app').replace(/[^a-z0-9]/gi, '_') + '-debug.zip';
-    if(typeof AndroidBridge !== 'undefined' && AndroidBridge.downloadFile){
-      AndroidBridge.downloadFile(art.archive_download_url, fileName, ghConfig.token);
-      if(btn) btn.textContent = 'Téléchargement lancé !';
-    } else {
-      if(btn) btn.textContent = 'Préparation...';
-      fetch(art.archive_download_url, {headers:{'Authorization':'Bearer '+ghConfig.token}}).then(function(r){ return r.blob(); }).then(function(b){
-        var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download=fileName; a.click();
-      });
-    }
+    if(btn) btn.textContent = 'Telechargement...';
+    fetch(art.archive_download_url, {headers:{'Authorization':'Bearer '+ghConfig.token}}).then(function(resp){
+      if(!resp.ok) throw new Error('Download failed');
+      return resp.blob();
+    }).then(function(blob){
+      var u = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = u; a.download = ((cfg && cfg.name ? cfg.name : 'app')) + '-debug.zip';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); }, 2000);
+      if(btn) btn.textContent = 'Telecharge !';
+      if(hint) hint.textContent = 'ZIP telecharge - ouvrir avec ZArchiver';
+    }).catch(function(){ openLastRun(); });
     return;
   }
-
-  if(cfg.runId){
+  if(cfg && cfg.runId){
     if(btn) btn.textContent = "Recherche de l'APK...";
-    githubApi('/actions/runs/' + cfg.runId + '/artifacts', ghConfig).then(function(r){
-      if(!r.ok) throw new Error('Artifacts non trouvés');
-      return r.json();
-    }).then(function(data){
-      var found = data.artifacts && data.artifacts[0];
-      if(found){
-        S.lastArtifact = found;
-        document.getElementById('direct-dl-area').style.display = 'block';
-        downloadApkDirect();
-      } else {
-        toast('Artifact non encore prêt, réessayez dans 10s', 'w');
-        if(btn) btn.textContent = '⬇️ Réessayer le téléchargement';
-      }
-    }).catch(function(){ toast('Erreur API GitHub', 'e'); });
+    githubApi('/actions/runs/' + cfg.runId + '/artifacts', ghConfig).then(function(artResp){
+      if(!artResp.ok){ openLastRun(); return; }
+      return artResp.json().then(function(artData){
+        var found = artData.artifacts && artData.artifacts[0];
+        if(found){ S.lastArtifact = found; downloadApkDirect(); }
+        else { openLastRun(); }
+      });
+    }).catch(function(){ openLastRun(); });
+    return;
   }
+  if(btn) btn.textContent = 'Ouvrir GitHub';
+  openLastRun();
 }
 
 // ════════════════════════════════
@@ -1984,7 +1972,7 @@ function pushFileToRepo(token, owner, repo, filePath, content, message, isPreB64
 }
 
 // ── INITIALISER UN NOUVEAU DÉPÔT AVEC BOILERPLATE ANDROID ────
-var BOILERPLATE_WORKFLOW_B64 = 'bmFtZTogQnVpbGQgUFdBIHRvIEFuZHJvaWQgQVBLCgpvbjoKICBwdXNoOgogICAgYnJhbmNoZXM6IFsgbWFpbiBdCiAgd29ya2Zsb3dfZGlzcGF0Y2g6CiAgICBpbnB1dHM6CiAgICAgIGFwcF9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiTm9tIGRlIGwnYXBwbGljYXRpb24iCiAgICAgICAgcmVxdWlyZWQ6IGZhbHNlCiAgICAgICAgZGVmYXVsdDogIk1vbkFwcCIKICAgICAgcGFja2FnZV9pZDoKICAgICAgICBkZXNjcmlwdGlvbjogIlBhY2thZ2UgQW5kcm9pZCAoZXg6IGNvbS5ucHMubW9uYXBwKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiY29tLm5wcy5wd2Euc3R1ZGlvIgogICAgICBwd2FfdXJsOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVVJMIGRlIGxhIFBXQSBIVFRQUyIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIgogICAgICB0aGVtZV9jb2xvcjoKICAgICAgICBkZXNjcmlwdGlvbjogIkNvdWxldXIgdGjDqG1lICgjcnJnZ2JiKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIzdjNmVmZiIKICAgICAgdmVyc2lvbl9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVmVyc2lvbiAoZXg6IDEuMC4wKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiMS4wLjAiCiAgICAgIG1pbl9zZGs6CiAgICAgICAgZGVzY3JpcHRpb246ICJTREsgQW5kcm9pZCBtaW5pbXVtIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIyMyIKICAgICAgcGVybWlzc2lvbnM6CiAgICAgICAgZGVzY3JpcHRpb246ICJQZXJtaXNzaW9ucyBzw6lwYXLDqWVzIHBhciB2aXJndWxlIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCiAgICAgIGJ1aWxkX2lkOgogICAgICAgIGRlc2NyaXB0aW9uOiAiSUQgdW5pcXVlIGR1IGJ1aWxkIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCgpqb2JzOgogIGJ1aWxkOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gbmFtZTogMS4gUsOpY3Vww6lyYXRpb24gZHUgY29kZSBzb3VyY2UKICAgICAgICB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CgogICAgICAtIG5hbWU6IDIuIENvbmZpZ3VyYXRpb24gZGUgSmF2YSBKREsgMTcKICAgICAgICB1c2VzOiBhY3Rpb25zL3NldHVwLWphdmFAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgZGlzdHJpYnV0aW9uOiAndGVtdXJpbicKICAgICAgICAgIGphdmEtdmVyc2lvbjogJzE3JwogICAgICAgICAgY2FjaGU6IGdyYWRsZQoKICAgICAgLSBuYW1lOiAzLiBDb25maWd1cmF0aW9uIGRlIGwnQW5kcm9pZCBTREsKICAgICAgICB1c2VzOiBhbmRyb2lkLWFjdGlvbnMvc2V0dXAtYW5kcm9pZEB2MwoKICAgICAgLSBuYW1lOiA0LiBJbnN0YWxsZXIgY29tcG9zYW50cyBTREsKICAgICAgICBydW46IHwKICAgICAgICAgIHllcyB8IHNka21hbmFnZXIgLS1saWNlbnNlcyB8fCB0cnVlCiAgICAgICAgICBzZGttYW5hZ2VyICJwbGF0Zm9ybXM7YW5kcm9pZC0zMyIgImJ1aWxkLXRvb2xzOzMzLjAuMiIgInBsYXRmb3JtLXRvb2xzIgoKICAgICAgLSBuYW1lOiA1LiBBcHBsaXF1ZXIgcGFyYW3DqHRyZXMgZHUgYnVpbGQKICAgICAgICBydW46IHwKICAgICAgICAgIEFQUF9OQU1FPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5hcHBfbmFtZSB8fCAnUFdBLUFQSyBTdHVkaW8nIH19IgogICAgICAgICAgUEtHPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5wYWNrYWdlX2lkIHx8ICdjb20ubnBzLnB3YS5zdHVkaW8nIH19IgogICAgICAgICAgVkVSPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy52ZXJzaW9uX25hbWUgfHwgJzEuMC4wJyB9fSIKICAgICAgICAgIGVjaG8gIkFQUF9OQU1FPSRBUFBfTkFNRSIgPj4gJEdJVEhVQl9FTlYKICAgICAgICAgIGVjaG8gIlBLRz0kUEtHIiA+PiAkR0lUSFVCX0VOVgogICAgICAgICAgZWNobyAiVkVSPSRWRVIiID4+ICRHSVRIVUJfRU5WCiAgICAgICAgICAjIE1ldHRyZSDDoCBqb3VyIGxlIG5vbSBkZSBsJ2FwcCBkYW5zIHN0cmluZ3MueG1sCiAgICAgICAgICBzZWQgLWkgInN8PHN0cmluZyBuYW1lPVwiYXBwX25hbWVcIj4uKjwvc3RyaW5nPnw8c3RyaW5nIG5hbWU9XCJhcHBfbmFtZVwiPiRBUFBfTkFNRTwvc3RyaW5nPnwiIGFwcC9zcmMvbWFpbi9yZXMvdmFsdWVzL3N0cmluZ3MueG1sIHx8IHRydWUKICAgICAgICAgICMgTWV0dHJlIMOgIGpvdXIgbGUgbmFtZXNwYWNlIGV0IGFwcGxpY2F0aW9uSWQKICAgICAgICAgIHNlZCAtaSAic3xuYW1lc3BhY2UgJ2NvbS5ucHMucHdhLnN0dWRpbyd8bmFtZXNwYWNlICckUEtHJ3xnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3xhcHBsaWNhdGlvbklkIFwiY29tLm5wcy5wd2Euc3R1ZGlvXCJ8YXBwbGljYXRpb25JZCBcIiRQS0dcInxnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3x2ZXJzaW9uTmFtZSBcIjEuMFwifHZlcnNpb25OYW1lIFwiJFZFUlwifGciIGFwcC9idWlsZC5ncmFkbGUgfHwgdHJ1ZQogICAgICAgICAgCiAgICAgICAgICAjIENyw6llciBpY8O0bmVzIGxhdW5jaGVyIHBhciBkw6lmYXV0IHNpIGFic2VudGVzCiAgICAgICAgICBJQ19CNjQ9ImlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFEQUFBQUF3Q0FJQUFBRFlZRzdRQUFBQVFVbEVRVlI0bk8zT1FRMEFJQXdBc1NsR0FkN0JCY2VqU1FWMDlqcGZtWHdnSkNRa1ZBK0VoSVNFNm9HUWtKQlFQUkFTRWhLcUIwSkNRa0wxUUVoSTZMRUxTaVV5QUVqZDV2TUFBQUFBU1VWT1JLNUNZSUk9IgogICAgICAgICAgZm9yIERJUiBpbiBtaXBtYXAtbWRwaSBtaXBtYXAtaGRwaSBtaXBtYXAteGhkcGkgbWlwbWFwLXh4aGRwaSBtaXBtYXAteHh4aGRwaTsgZG8KICAgICAgICAgICAgbWtkaXIgLXAgImFwcC9zcmMvbWFpbi9yZXMvJERJUiIKICAgICAgICAgICAgaWYgWyAhIC1mICJhcHAvc3JjL21haW4vcmVzLyRESVIvaWNfbGF1bmNoZXIucG5nIiBdOyB0aGVuCiAgICAgICAgICAgICAgcHJpbnRmICIlcyIgIiRJQ19CNjQiIHwgYmFzZTY0IC1kID4gImFwcC9zcmMvbWFpbi9yZXMvJERJUi9pY19sYXVuY2hlci5wbmciCiAgICAgICAgICAgIGZpCiAgICAgICAgICBkb25lCiAgICAgICAgICAjIEZvcmNlciBBbmRyb2lkWCBldCBKZXRpZmllciAoc2FucyBlc3BhY2VzLCBvYmxpZ2F0b2lyZSkKICAgICAgICAgIHNlZCAtaSAiL2FuZHJvaWQudXNlQW5kcm9pZFgvZCIgZ3JhZGxlLnByb3BlcnRpZXMgMj4vZGV2L251bGwgfHwgdHJ1ZQogICAgICAgICAgc2VkIC1pICIvYW5kcm9pZC5lbmFibGVKZXRpZmllci9kIiBncmFkbGUucHJvcGVydGllcyAyPi9kZXYvbnVsbCB8fCB0cnVlCiAgICAgICAgICBlY2hvICJhbmRyb2lkLnVzZUFuZHJvaWRYPXRydWUiID4+IGdyYWRsZS5wcm9wZXJ0aWVzCiAgICAgICAgICBlY2hvICJhbmRyb2lkLmVuYWJsZUpldGlmaWVyPXRydWUiID4+IGdyYWRsZS5wcm9wZXJ0aWVzCiAgICAgICAgICBlY2hvICLinIUgUGFyYW3DqHRyZXMgYXBwbGlxdcOpcyIKCiAgICAgIC0gbmFtZTogNi4gVMOpbMOpY2hhcmdlciBHcmFkbGUgV3JhcHBlciBKQVIKICAgICAgICBydW46IHwKICAgICAgICAgIG1rZGlyIC1wIGdyYWRsZS93cmFwcGVyCiAgICAgICAgICBjdXJsIC1mc1NMIC1vIGdyYWRsZS93cmFwcGVyL2dyYWRsZS13cmFwcGVyLmphciBcCiAgICAgICAgICAgIGh0dHBzOi8vZ2l0aHViLmNvbS9ncmFkbGUvZ3JhZGxlL3Jhdy92OC4yLjAvZ3JhZGxlL3dyYXBwZXIvZ3JhZGxlLXdyYXBwZXIuamFyCgogICAgICAtIG5hbWU6IDcuIFJlbmRyZSBncmFkbGV3IGV4w6ljdXRhYmxlCiAgICAgICAgcnVuOiBjaG1vZCAreCBncmFkbGV3CgogICAgICAtIG5hbWU6IDguIENvbXBpbGF0aW9uIEFQSyBEZWJ1ZwogICAgICAgIHJ1bjogLi9ncmFkbGV3IGFzc2VtYmxlRGVidWcgLS1uby1kYWVtb24gLS1zdGFja3RyYWNlCgogICAgICAtIG5hbWU6IDkuIFB1YmxpY2F0aW9uIEFQSwogICAgICAgIHVzZXM6IGFjdGlvbnMvdXBsb2FkLWFydGlmYWN0QHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIG5hbWU6IGFway0ke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5idWlsZF9pZCB8fCAnbGF0ZXN0JyB9fQogICAgICAgICAgcGF0aDogYXBwL2J1aWxkL291dHB1dHMvYXBrL2RlYnVnLyouYXBrCiAgICAgICAgICByZXRlbnRpb24tZGF5czogMzAKCiAgICAgIC0gbmFtZTogMTAuIEluZm9zIGR1IGJ1aWxkCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBlY2hvICI9PT0gQnVpbGQgdGVybWluw6kgYXZlYyBzdWNjw6hzID09PSIKICAgICAgICAgIGVjaG8gIkFwcDogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuYXBwX25hbWUgfHwgJ1BXQS1BUEsgU3R1ZGlvJyB9fSIKICAgICAgICAgIGVjaG8gIlBhY2thZ2U6ICR7eyBnaXRodWIuZXZlbnQuaW5wdXRzLnBhY2thZ2VfaWQgfHwgJ2NvbS5ucHMucHdhLnN0dWRpbycgfX0iCiAgICAgICAgICBlY2hvICJWZXJzaW9uOiAke3sgZ2l0aHViLmV2ZW50LmlucHV0cy52ZXJzaW9uX25hbWUgfHwgJzEuMC4wJyB9fSIKICAgICAgICAgIGxzIC1saCBhcHAvYnVpbGQvb3V0cHV0cy9hcGsvZGVidWcvKi5hcGsgMj4vZGV2L251bGwgfHwgZWNobyAiQVBLIG5vbiB0cm91dsOpIgo=';
+var BOILERPLATE_WORKFLOW_B64 = 'bmFtZTogQnVpbGQgUFdBIHRvIEFuZHJvaWQgQVBLCgpvbjoKICBwdXNoOgogICAgYnJhbmNoZXM6IFsgbWFpbiBdCiAgd29ya2Zsb3dfZGlzcGF0Y2g6CiAgICBpbnB1dHM6CiAgICAgIGFwcF9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiTm9tIGRlIGwnYXBwbGljYXRpb24iCiAgICAgICAgcmVxdWlyZWQ6IGZhbHNlCiAgICAgICAgZGVmYXVsdDogIk1vbkFwcCIKICAgICAgcGFja2FnZV9pZDoKICAgICAgICBkZXNjcmlwdGlvbjogIlBhY2thZ2UgQW5kcm9pZCAoZXg6IGNvbS5ucHMubW9uYXBwKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiY29tLm5wcy5wd2Euc3R1ZGlvIgogICAgICBwd2FfdXJsOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVVJMIGRlIGxhIFBXQSBIVFRQUyIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIgogICAgICB0aGVtZV9jb2xvcjoKICAgICAgICBkZXNjcmlwdGlvbjogIkNvdWxldXIgdGjDqG1lICgjcnJnZ2JiKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIzdjNmVmZiIKICAgICAgdmVyc2lvbl9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVmVyc2lvbiAoZXg6IDEuMC4wKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiMS4wLjAiCiAgICAgIG1pbl9zZGs6CiAgICAgICAgZGVzY3JpcHRpb246ICJTREsgQW5kcm9pZCBtaW5pbXVtIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIyMyIKICAgICAgcGVybWlzc2lvbnM6CiAgICAgICAgZGVzY3JpcHRpb246ICJQZXJtaXNzaW9ucyBzw6lwYXLDqWVzIHBhciB2aXJndWxlIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCiAgICAgIGJ1aWxkX2lkOgogICAgICAgIGRlc2NyaXB0aW9uOiAiSUQgdW5pcXVlIGR1IGJ1aWxkIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCgpqb2JzOgogIGJ1aWxkOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gbmFtZTogMS4gUsOpY3Vww6lyYXRpb24gZHUgY29kZSBzb3VyY2UKICAgICAgICB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CgogICAgICAtIG5hbWU6IDIuIENvbmZpZ3VyYXRpb24gZGUgSmF2YSBKREsgMTcKICAgICAgICB1c2VzOiBhY3Rpb25zL3NldHVwLWphdmFAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgZGlzdHJpYnV0aW9uOiAndGVtdXJpbicKICAgICAgICAgIGphdmEtdmVyc2lvbjogJzE3JwogICAgICAgICAgY2FjaGU6IGdyYWRsZQoKICAgICAgLSBuYW1lOiAzLiBDb25maWd1cmF0aW9uIGRlIGwnQW5kcm9pZCBTREsKICAgICAgICB1c2VzOiBhbmRyb2lkLWFjdGlvbnMvc2V0dXAtYW5kcm9pZEB2MwoKICAgICAgLSBuYW1lOiA0LiBJbnN0YWxsZXIgY29tcG9zYW50cyBTREsKICAgICAgICBydW46IHwKICAgICAgICAgIHllcyB8IHNka21hbmFnZXIgLS1saWNlbnNlcyB8fCB0cnVlCiAgICAgICAgICBzZGttYW5hZ2VyICJwbGF0Zm9ybXM7YW5kcm9pZC0zMyIgImJ1aWxkLXRvb2xzOzMzLjAuMiIgInBsYXRmb3JtLXRvb2xzIgoKICAgICAgLSBuYW1lOiA1LiBBcHBsaXF1ZXIgcGFyYW3DqHRyZXMgZHUgYnVpbGQKICAgICAgICBydW46IHwKICAgICAgICAgIEFQUF9OQU1FPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5hcHBfbmFtZSB8fCAnUFdBLUFQSyBTdHVkaW8nIH19IgogICAgICAgICAgUEtHPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5wYWNrYWdlX2lkIHx8ICdjb20ubnBzLnB3YS5zdHVkaW8nIH19IgogICAgICAgICAgVkVSPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy52ZXJzaW9uX25hbWUgfHwgJzEuMC4wJyB9fSIKICAgICAgICAgIGVjaG8gIkFQUF9OQU1FPSRBUFBfTkFNRSIgPj4gJEdJVEhVQl9FTlYKICAgICAgICAgIGVjaG8gIlBLRz0kUEtHIiA+PiAkR0lUSFVCX0VOVgogICAgICAgICAgZWNobyAiVkVSPSRWRVIiID4+ICRHSVRIVUJfRU5WCiAgICAgICAgICAjIE1ldHRyZSDDoCBqb3VyIGxlIG5vbSBkZSBsJ2FwcCBkYW5zIHN0cmluZ3MueG1sCiAgICAgICAgICBzZWQgLWkgInN8PHN0cmluZyBuYW1lPVwiYXBwX25hbWVcIj4uKjwvc3RyaW5nPnw8c3RyaW5nIG5hbWU9XCJhcHBfbmFtZVwiPiRBUFBfTkFNRTwvc3RyaW5nPnwiIGFwcC9zcmMvbWFpbi9yZXMvdmFsdWVzL3N0cmluZ3MueG1sIHx8IHRydWUKICAgICAgICAgICMgTWV0dHJlIMOgIGpvdXIgbGUgbmFtZXNwYWNlIGV0IGFwcGxpY2F0aW9uSWQKICAgICAgICAgIHNlZCAtaSAic3xuYW1lc3BhY2UgJ2NvbS5ucHMucHdhLnN0dWRpbyd8bmFtZXNwYWNlICckUEtHJ3xnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3xhcHBsaWNhdGlvbklkIFwiY29tLm5wcy5wd2Euc3R1ZGlvXCJ8YXBwbGljYXRpb25JZCBcIiRQS0dcInxnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3x2ZXJzaW9uTmFtZSBcIjEuMFwifHZlcnNpb25OYW1lIFwiJFZFUlwifGciIGFwcC9idWlsZC5ncmFkbGUgfHwgdHJ1ZQogICAgICAgICAgZWNobyAi4pyFIFBhcmFtw6h0cmVzIGFwcGxpcXXDqXMiCgogICAgICAtIG5hbWU6IDYuIFTDqWzDqWNoYXJnZXIgR3JhZGxlIFdyYXBwZXIgSkFSCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBta2RpciAtcCBncmFkbGUvd3JhcHBlcgogICAgICAgICAgY3VybCAtZnNTTCAtbyBncmFkbGUvd3JhcHBlci9ncmFkbGUtd3JhcHBlci5qYXIgXAogICAgICAgICAgICBodHRwczovL2dpdGh1Yi5jb20vZ3JhZGxlL2dyYWRsZS9yYXcvdjguMi4wL2dyYWRsZS93cmFwcGVyL2dyYWRsZS13cmFwcGVyLmphcgoKICAgICAgLSBuYW1lOiA3LiBSZW5kcmUgZ3JhZGxldyBleMOpY3V0YWJsZQogICAgICAgIHJ1bjogY2htb2QgK3ggZ3JhZGxldwoKICAgICAgLSBuYW1lOiA4LiBDb21waWxhdGlvbiBBUEsgRGVidWcKICAgICAgICBydW46IC4vZ3JhZGxldyBhc3NlbWJsZURlYnVnIC0tbm8tZGFlbW9uIC0tc3RhY2t0cmFjZQoKICAgICAgLSBuYW1lOiA5LiBQdWJsaWNhdGlvbiBBUEsKICAgICAgICB1c2VzOiBhY3Rpb25zL3VwbG9hZC1hcnRpZmFjdEB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBuYW1lOiBhcGstJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuYnVpbGRfaWQgfHwgJ2xhdGVzdCcgfX0KICAgICAgICAgIHBhdGg6IGFwcC9idWlsZC9vdXRwdXRzL2Fway9kZWJ1Zy8qLmFwawogICAgICAgICAgcmV0ZW50aW9uLWRheXM6IDMwCgogICAgICAtIG5hbWU6IDEwLiBJbmZvcyBkdSBidWlsZAogICAgICAgIHJ1bjogfAogICAgICAgICAgZWNobyAiPT09IEJ1aWxkIHRlcm1pbsOpIGF2ZWMgc3VjY8OocyA9PT0iCiAgICAgICAgICBlY2hvICJBcHA6ICR7eyBnaXRodWIuZXZlbnQuaW5wdXRzLmFwcF9uYW1lIHx8ICdQV0EtQVBLIFN0dWRpbycgfX0iCiAgICAgICAgICBlY2hvICJQYWNrYWdlOiAke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5wYWNrYWdlX2lkIHx8ICdjb20ubnBzLnB3YS5zdHVkaW8nIH19IgogICAgICAgICAgZWNobyAiVmVyc2lvbjogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMudmVyc2lvbl9uYW1lIHx8ICcxLjAuMCcgfX0iCiAgICAgICAgICBscyAtbGggYXBwL2J1aWxkL291dHB1dHMvYXBrL2RlYnVnLyouYXBrIDI+L2Rldi9udWxsIHx8IGVjaG8gIkFQSyBub24gdHJvdXbDqSIK';
 
 function setupNewRepo(token, owner, repo, appName, pkg, method, pwaUrl, webFiles, term) {
   termLine(term, 'Configuration du projet Android dans le depot...', 'i');
@@ -2147,78 +2135,8 @@ function runMethod1() { runAutoMethod(1); }
 function runMethod2() { runAutoMethod(2); }
 
 // ════════════════════════════════
-// COMPILER DEPUIS L'EDITEUR
-// ════════════════════════════════
-function compileFromEditor() {
-  saveEditorSilent();
-  var fileCount = Object.keys(S.files).length;
-  if (!fileCount) { toast('Aucun fichier dans le projet', 'w'); return; }
-  var savedToken = document.getElementById('m1-token').value.trim();
-  var savedName  = document.getElementById('c-name').value.trim() || S.projectName || '';
-  document.getElementById('modal-title').textContent = 'Compiler APK depuis l\'editeur';
-  document.getElementById('modal-body').innerHTML =
-    '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">' +
-      fileCount + ' fichier(s) du projet seront envoyes sur GitHub et compiles en APK.' +
-    '</p>' +
-    '<label>Nom de l\'app</label>' +
-    '<input type="text" id="compile-name-inp" placeholder="MonApplication" value="' + savedName + '" style="margin-bottom:10px">' +
-    '<label>Token GitHub (scopes : <b>repo</b> + <b>workflow</b>)</label>' +
-    '<input type="password" id="compile-token-inp" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" value="' + savedToken + '" style="margin-bottom:14px">' +
-    '<button class="btn btn-accent btn-full" onclick="doCompileFromEditor()">🚀 Lancer la compilation</button>';
-  openModal();
-}
-
-function doCompileFromEditor() {
-  var token   = document.getElementById('compile-token-inp').value.trim();
-  var appName = document.getElementById('compile-name-inp').value.trim();
-  if (!token) { toast('Entrez votre token GitHub', 'w'); return; }
-  if (!appName) appName = S.projectName || 'MonApp';
-  // Remplir les champs de la methode 1 avec les valeurs saisies
-  document.getElementById('m1-token').value = token;
-  document.getElementById('c-name').value   = appName;
-  var pkgSafe = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!document.getElementById('c-pkg').value.trim()) {
-    document.getElementById('c-pkg').value = 'com.nps.' + pkgSafe;
-  }
-  // Copier S.files vers m1Files pour que runAutoMethod(1) les utilise
-  m1Files = {};
-  var keys = Object.keys(S.files);
-  for (var i = 0; i < keys.length; i++) {
-    m1Files[keys[i]] = S.files[keys[i]];
-  }
-  closeModal();
-  // Basculer sur Methode 1 (ZIP->APK) et lancer
-  switchMethod(1);
-  goPage('convert');
-  setTimeout(function() { runMethod1(); }, 350);
-}
-
-// ════════════════════════════════
-// MENU AIDE & CONTACT
-// ════════════════════════════════
-function openAideMenu() {
-  document.getElementById('modal-title').textContent = 'Aide & Contact NPS.NELSON';
-  document.getElementById('modal-body').innerHTML =
-    '<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">' +
-      'Besoin d\'aide avec PWA-APK Studio ?<br>Contactez NPS.NELSON directement :' +
-    '</div>' +
-    '<div style="display:flex;flex-direction:column;gap:10px">' +
-      '<button class="btn btn-green btn-full" onclick="openExternalUrl(\'https://wa.me/243981083202\');closeModal()">' +
-        '💬 WhatsApp Direct</button>' +
-      '<button class="btn btn-green btn-full" onclick="openExternalUrl(\'https://whatsapp.com/channel/0029Vb8AxMhEAKWFtOKdvq0s\');closeModal()">' +
-        '📢 Chaine WhatsApp NPS.NELSON</button>' +
-      '<button class="btn btn-ghost btn-full" onclick="openExternalUrl(\'mailto:nelsonpataule11@gmail.com\');closeModal()">' +
-        '📧 nelsonpataule11@gmail.com</button>' +
-    '</div>' +
-    '<button class="btn btn-ghost btn-full" onclick="closeModal()" style="margin-top:12px">Fermer</button>';
-  openModal();
-}
-
-// ════════════════════════════════
 // CLICK EXTERIEUR — ferme dropdown
 // ════════════════════════════════
-// Final build trigger
-
 document.addEventListener('click', function(e){
   var bd = document.getElementById('branch-drop');
   if(bd && !e.target.closest('#branch-wrap')) bd.classList.remove('open');

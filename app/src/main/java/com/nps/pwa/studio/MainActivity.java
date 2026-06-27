@@ -25,7 +25,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
-    private static final int FILE_CHOOSER_REQUEST = 100;
+    private static final int FILE_CHOOSER_REQUEST = 1;
 
     @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
     @Override
@@ -41,8 +41,8 @@ public class MainActivity extends Activity {
                     startActivity(intent);
                 } catch (Exception e) {
                     try {
-                        Intent intent2 = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                        startActivity(intent2);
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                        startActivity(intent);
                     } catch (Exception ignored) {}
                 }
             }
@@ -83,16 +83,11 @@ public class MainActivity extends Activity {
             }
         });
 
-        // ── WebChromeClient avec support FileChooser pour input[type=file] ──
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public boolean onShowFileChooser(WebView webView2,
-                    ValueCallback<Uri[]> filePathCallback2,
-                    FileChooserParams fileChooserParams) {
-                // Annuler tout callback en attente avant d'en accepter un nouveau
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback2, FileChooserParams fileChooserParams) {
                 if (filePathCallback != null) {
                     filePathCallback.onReceiveValue(null);
-                    filePathCallback = null;
                 }
                 filePathCallback = filePathCallback2;
                 Intent intent = fileChooserParams.createIntent();
@@ -109,7 +104,6 @@ public class MainActivity extends Activity {
         webView.loadUrl("file:///android_asset/www/index.html");
     }
 
-    // ── Résultat du sélecteur de fichier renvoyé à la WebView ──
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == FILE_CHOOSER_REQUEST) {
@@ -129,7 +123,6 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    // ── Pont JavaScript → Java ──
     public class AndroidBridge {
         @JavascriptInterface
         public void openUrl(String url) {
@@ -144,9 +137,7 @@ public class MainActivity extends Activity {
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_TEXT, text);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                startActivity(Intent.createChooser(intent, "Partager"));
-            } catch (Exception e) { /* ignore */ }
+            try { startActivity(Intent.createChooser(intent, "Partager")); } catch (Exception e) { /* ignore */ }
         }
 
         @JavascriptInterface
@@ -173,14 +164,12 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ── Bouton Retour : confirmation avant de quitter ──
     @Override
     public void onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack();
             return;
         }
-        // Lire la préférence de confirmation dans localStorage
         webView.evaluateJavascript(
             "(function(){ try{ return localStorage.getItem('nps_quit_confirm'); }catch(e){ return null; } })()",
             new ValueCallback<String>() {

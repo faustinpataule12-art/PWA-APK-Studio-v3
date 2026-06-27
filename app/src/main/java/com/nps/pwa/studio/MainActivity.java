@@ -3,6 +3,8 @@ package com.nps.pwa.studio;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.Manifest;
@@ -18,6 +20,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -144,6 +147,29 @@ public class MainActivity extends Activity {
             try {
                 startActivity(Intent.createChooser(intent, "Partager"));
             } catch (Exception e) { /* ignore */ }
+        }
+
+        @JavascriptInterface
+        public void downloadFile(String url, String fileName, String token) {
+            try {
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                request.setTitle("Téléchargement de " + fileName);
+                request.setDescription("PWA-APK Studio");
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+                
+                if (token != null && !token.isEmpty()) {
+                    request.addRequestHeader("Authorization", "Bearer " + token);
+                }
+
+                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    dm.enqueue(request);
+                    Toast.makeText(MainActivity.this, "Téléchargement lancé...", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(MainActivity.this, "Erreur de téléchargement : " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         }
     }
 

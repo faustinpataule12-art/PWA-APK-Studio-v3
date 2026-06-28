@@ -288,6 +288,73 @@
       .admin-toast.err { border-color: rgba(239,68,68,0.4); color: #f87171; }
       .admin-toast.show { opacity: 1; }
 
+      /* ── Bouton Voir (barre utilisateur) ── */
+      .auth-voir-btn {
+        background: rgba(124,110,255,0.15);
+        border: 1px solid rgba(124,110,255,0.35);
+        color: #a78bfa; padding: 5px 11px;
+        border-radius: 7px; font-size: 12px; font-weight: 700;
+        cursor: pointer; position: relative;
+      }
+      .auth-voir-btn:active { opacity: 0.8; }
+      .auth-voir-badge {
+        position: absolute; top: -5px; right: -6px;
+        background: #ef4444; color: #fff;
+        font-size: 9px; font-weight: 700;
+        min-width: 16px; height: 16px; border-radius: 8px;
+        display: none; align-items: center; justify-content: center;
+        padding: 0 3px; line-height: 1;
+      }
+      .auth-voir-badge.visible { display: flex; }
+
+      /* ── Panneau lecture seule ── */
+      #viewer-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.85); z-index: 99997;
+        align-items: flex-end; justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      #viewer-overlay.open { display: flex; }
+      #viewer-panel {
+        background: #0d0d1a; border-top: 1px solid rgba(124,110,255,0.25);
+        border-radius: 20px 20px 0 0;
+        width: 100%; max-height: 80vh; display: flex; flex-direction: column;
+      }
+      .viewer-drag { width: 40px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 10px; margin: 14px auto 0; flex-shrink: 0; }
+      .viewer-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+      }
+      .viewer-title { font-size: 15px; font-weight: 700; color: #fff; }
+      .viewer-close {
+        background: none; border: none; color: #6b7280;
+        font-size: 20px; cursor: pointer; line-height: 1; padding: 4px;
+      }
+      .viewer-read-badge {
+        font-size: 10px; background: rgba(34,197,94,0.12);
+        color: #4ade80; border: 1px solid rgba(34,197,94,0.25);
+        padding: 2px 8px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px;
+      }
+      #viewer-list {
+        flex: 1; overflow-y: auto; padding: 14px 18px 24px;
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      .viewer-item {
+        background: #13131f; border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 12px; padding: 12px 14px;
+        pointer-events: none; /* lecture seule totale */
+        user-select: text; -webkit-user-select: text;
+      }
+      .viewer-item.unread { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.07); }
+      .viewer-meta { font-size: 11px; color: #6b7280; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+      .viewer-new-badge {
+        background: #ef4444; color: #fff;
+        font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+      }
+      .viewer-text { font-size: 14px; color: #e5e7eb; line-height: 1.6; }
+      .viewer-empty { color: #6b7280; font-size: 13px; text-align: center; padding: 30px 0; }
+      #viewer-overlay.open #viewer-panel { animation: adminSlideUp 0.3s ease; }
+
       /* Animations */
       @keyframes authFadeIn {
         from { opacity: 0; transform: translateY(20px); }
@@ -383,6 +450,10 @@
         <span class="auth-user-email" id="auth-user-email-el"></span>
       </div>
       <div class="auth-bar-actions">
+        <button class="auth-voir-btn" id="voir-btn" onclick="viewerOpen()">
+          📢 Voir
+          <span class="auth-voir-badge" id="voir-badge"></span>
+        </button>
         <button class="auth-admin-btn" id="admin-panel-btn"
           style="display:none" onclick="adminPanelOpen()">
           ⚙️ ADMIN
@@ -391,6 +462,33 @@
       </div>
     `;
     document.body.appendChild(bar);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // HTML — Panneau Lecture Seule (tous les utilisateurs)
+  // ══════════════════════════════════════════════════════════
+  function createViewerPanel() {
+    var overlay = document.createElement('div');
+    overlay.id = 'viewer-overlay';
+    overlay.innerHTML = `
+      <div id="viewer-panel">
+        <div class="viewer-drag"></div>
+        <div class="viewer-header">
+          <div class="viewer-title">📢 Mises à jour</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="viewer-read-badge">LECTURE SEULE</span>
+            <button class="viewer-close" onclick="viewerClose()">✕</button>
+          </div>
+        </div>
+        <div id="viewer-list">
+          <div class="viewer-empty">Chargement…</div>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) viewerClose();
+    });
+    document.body.appendChild(overlay);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -747,6 +845,111 @@
       });
   }
 
+  // ══════════════════════════════════════════════════════════
+  // VIEWER — Panneau lecture seule (tous les utilisateurs)
+  // ══════════════════════════════════════════════════════════
+  var _viewerSeenIds = JSON.parse(localStorage.getItem('nps_viewer_seen') || '[]');
+  var _viewerUnsubscribe = null;
+
+  window.viewerOpen = function () {
+    var overlay = document.getElementById('viewer-overlay');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    _renderViewer();
+  };
+
+  window.viewerClose = function () {
+    var overlay = document.getElementById('viewer-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    // Marquer tout comme lu
+    var items = document.querySelectorAll('#viewer-list .viewer-item');
+    items.forEach(function(el) {
+      if (el.dataset.id && _viewerSeenIds.indexOf(el.dataset.id) < 0) {
+        _viewerSeenIds.push(el.dataset.id);
+      }
+    });
+    localStorage.setItem('nps_viewer_seen', JSON.stringify(_viewerSeenIds));
+    _updateVoirBadge(0);
+  };
+
+  function _renderViewer() {
+    var list = document.getElementById('viewer-list');
+    if (!list) return;
+    list.innerHTML = '<div class="viewer-empty">Chargement…</div>';
+    getDb().collection('nouveautes').orderBy('timestamp', 'desc').limit(30).get()
+      .then(function(snap) {
+        list.innerHTML = '';
+        if (snap.empty) {
+          list.innerHTML = '<div class="viewer-empty">Aucune mise à jour pour l\'instant.</div>';
+          return;
+        }
+        snap.forEach(function(doc) {
+          var d = doc.data();
+          var id = doc.id;
+          var isSeen = _viewerSeenIds.indexOf(id) >= 0;
+          var ts = d.timestamp ? d.timestamp.toDate() : null;
+          var dateStr = ts ? ts.toLocaleDateString('fr-FR', {day:'2-digit', month:'short'}) +
+            ' à ' + ts.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : '…';
+
+          var item = document.createElement('div');
+          item.className = 'viewer-item' + (isSeen ? '' : ' unread');
+          item.dataset.id = id;
+
+          var meta = document.createElement('div');
+          meta.className = 'viewer-meta';
+          meta.textContent = dateStr;
+          if (!isSeen) {
+            var badge = document.createElement('span');
+            badge.className = 'viewer-new-badge';
+            badge.textContent = 'NOUVEAU';
+            meta.appendChild(badge);
+          }
+
+          var text = document.createElement('div');
+          text.className = 'viewer-text';
+          // Utiliser textContent + innerHTML pour les sauts de ligne uniquement
+          text.innerHTML = escHtml(d.text || '').replace(/\n/g, '<br>');
+
+          item.appendChild(meta);
+          item.appendChild(text);
+          list.appendChild(item);
+        });
+      }).catch(function(e) {
+        list.innerHTML = '<div class="viewer-empty" style="color:#f87171">Erreur de chargement.</div>';
+      });
+  }
+
+  function _updateVoirBadge(count) {
+    var badge = document.getElementById('voir-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : count;
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }
+
+  // Écoute temps réel pour le badge (non-lu) — démarré après connexion
+  function startViewerListener() {
+    if (_viewerUnsubscribe) _viewerUnsubscribe();
+    _viewerUnsubscribe = getDb().collection('nouveautes')
+      .orderBy('timestamp', 'desc').limit(30)
+      .onSnapshot(function(snap) {
+        var unread = 0;
+        snap.forEach(function(doc) {
+          if (_viewerSeenIds.indexOf(doc.id) < 0) unread++;
+        });
+        _updateVoirBadge(unread);
+      }, function() { /* silencieux */ });
+  }
+
+  function stopViewerListener() {
+    if (_viewerUnsubscribe) { _viewerUnsubscribe(); _viewerUnsubscribe = null; }
+    _updateVoirBadge(0);
+  }
+
   // ── Toast admin ────────────────────────────────────────────
   function adminToast(msg, err) {
     var t = document.getElementById('admin-toast');
@@ -766,6 +969,7 @@
     injectStyles();
     createOverlay();
     createUserBar();
+    createViewerPanel();
     createAdminPanel();
 
     // Résultat de redirection Google (connexion via redirect)
@@ -782,7 +986,7 @@
       if (user) {
         hideOverlay();
         showUserBar(user);
-        // Logger la connexion (seulement si l'onglet vient de s'ouvrir)
+        startViewerListener();
         if (!window._nps_logged) {
           window._nps_logged = true;
           logActivity(user, 'connexion');
@@ -792,6 +996,8 @@
         showOverlay();
         var bar = document.getElementById('auth-user-bar');
         if (bar) bar.style.display = 'none';
+        stopViewerListener();
+        viewerClose();
         adminPanelClose();
       }
     });

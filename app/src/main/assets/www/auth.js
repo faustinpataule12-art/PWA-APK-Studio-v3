@@ -24,6 +24,22 @@
     return firebase.firestore();
   }
 
+  // ── Échappement HTML sûr (anti-XSS) ──────────────────────
+  function escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ── Vérification admin (côté JS) ─────────────────────────
+  function isAdminUser() {
+    var u = firebase.auth().currentUser;
+    return u && u.email === ADMIN_EMAIL;
+  }
+
   // ══════════════════════════════════════════════════════════
   // STYLES — Overlay auth + Barre utilisateur + Panneau admin
   // ══════════════════════════════════════════════════════════
@@ -463,7 +479,11 @@
     if (emailEl) emailEl.textContent = user.displayName || user.email;
     if (avatarEl) {
       if (user.photoURL) {
-        avatarEl.innerHTML = '<img src="' + user.photoURL + '" />';
+        // Utiliser DOM API pour éviter l'injection d'attribut via innerHTML
+        avatarEl.textContent = '';
+        var img = document.createElement('img');
+        img.src = user.photoURL;
+        avatarEl.appendChild(img);
       } else {
         avatarEl.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
       }
@@ -533,15 +553,15 @@
   // LOGGING — Enregistrer l'activité dans Firestore
   // ══════════════════════════════════════════════════════════
   function logActivity(user, action) {
-    try {
-      getDb().collection('logs_utilisateurs').add({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || '',
-        action: action,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } catch(e) { /* silencieux */ }
+    getDb().collection('logs_utilisateurs').add({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || '',
+      action: action,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(e) {
+      console.warn('[auth.js] logActivity failed:', e.message);
+    });
   }
 
   // ══════════════════════════════════════════════════════════
@@ -604,6 +624,7 @@
   // ADMIN — Panneau de gestion
   // ══════════════════════════════════════════════════════════
   window.adminPanelOpen = function () {
+    if (!isAdminUser()) { adminToast('Accès refusé.', true); return; }
     var p = document.getElementById('admin-panel-overlay');
     if (p) {
       p.classList.add('open');
@@ -632,6 +653,7 @@
 
   // ── Publier une nouveauté ──────────────────────────────────
   window.adminPublish = function () {
+    if (!isAdminUser()) { adminToast('Accès refusé.', true); return; }
     var input = document.getElementById('admin-msg-input');
     var txt = input ? input.value.trim() : '';
     if (!txt) { adminToast('Le message est vide.', true); return; }
@@ -670,9 +692,9 @@
           var date = d.timestamp ? d.timestamp.toDate().toLocaleString('fr-FR', {
             day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
           }) : 'En cours…';
-          var txt = (d.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+          var txt = escHtml(d.text || '').replace(/\n/g,'<br>');
           html += '<div class="admin-news-item">' +
-            '<div class="admin-news-meta">' + (d.author || 'Admin') + ' · ' + date + '</div>' +
+            '<div class="admin-news-meta">' + escHtml(d.author || 'Admin') + ' · ' + escHtml(date) + '</div>' +
             '<div class="admin-news-text">' + txt + '</div>' +
             '<button class="admin-news-del" onclick="adminDeleteNews(\'' + doc.id + '\')">Supprimer</button>' +
           '</div>';
@@ -685,6 +707,7 @@
 
   // ── Supprimer une mise à jour ─────────────────────────────
   window.adminDeleteNews = function (docId) {
+    if (!isAdminUser()) { adminToast('Accès refusé.', true); return; }
     if (!confirm('Supprimer cette mise à jour ? Elle disparaîtra immédiatement de l\'app.')) return;
     getDb().collection('nouveautes').doc(docId).delete()
       .then(function() {
@@ -713,9 +736,9 @@
           var date = d.timestamp ? d.timestamp.toDate().toLocaleString('fr-FR', {
             day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
           }) : '…';
-          var email = (d.email || '').replace(/</g,'&lt;');
-          var action = (d.action || '').replace(/</g,'&lt;');
-          html += '<tr><td style="white-space:nowrap">' + date + '</td><td>' + email + '</td><td>' + action + '</td></tr>';
+          var email = escHtml(d.email || '');
+          var action = escHtml(d.action || '');
+          html += '<tr><td style="white-space:nowrap">' + escHtml(date) + '</td><td>' + email + '</td><td>' + action + '</td></tr>';
         });
         html += '</tbody></table>';
         container.innerHTML = html;

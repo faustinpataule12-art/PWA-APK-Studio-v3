@@ -672,6 +672,9 @@
     setLoading('auth-login-btn', true);
     authClearMessages();
     firebase.auth().signInWithEmailAndPassword(email.trim(), pass)
+      .then(function(res) {
+        logActivity(res.user, 'connexion');
+      })
       .catch(function (err) {
         setLoading('auth-login-btn', false, 'Se connecter');
         authShowError(firebaseErrorMsg(err.code));
@@ -688,6 +691,10 @@
     firebase.auth().createUserWithEmailAndPassword(email.trim(), pass)
       .then(function (cred) {
         if (name) return cred.user.updateProfile({ displayName: name.trim() });
+        return cred;
+      })
+      .then(function(cred) {
+        logActivity(cred.user, 'inscription');
       })
       .catch(function (err) {
         setLoading('auth-reg-btn', false, 'Créer un compte');
@@ -696,12 +703,7 @@
   };
 
   window.authGoogle = function () {
-    authClearMessages();
-    var provider = new firebase.auth.GoogleAuthProvider();
-    // signInWithRedirect fonctionne mieux dans WebView que signInWithPopup
-    firebase.auth().signInWithRedirect(provider).catch(function (err) {
-      authShowError(firebaseErrorMsg(err.code));
-    });
+    authShowError('Connexion Google non disponible. Veuillez utiliser email/mot de passe.');
   };
 
   window.authForgotPassword = function () {

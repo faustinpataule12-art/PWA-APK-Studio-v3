@@ -2200,12 +2200,13 @@ db.collection('nouveautes').orderBy('timestamp','desc').onSnapshot(function(snap
 
     var ts = data.timestamp ? data.timestamp.toDate() : new Date();
     var dateStr = ts.toLocaleDateString('fr-FR', {day:'2-digit',month:'short'}) + ' à ' + ts.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    var author = data.author || 'Admin';
 
     var item = document.createElement('div');
     item.className = 'nv-item';
     item.dataset.id = id;
     item.style.cssText = 'padding:10px 12px;border-radius:10px;border:1px solid ' + (isSeen ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.4)') + ';background:' + (isSeen ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.08)') + ';font-size:13px;line-height:1.5;';
-    item.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">' + dateStr + (isSeen ? '' : ' <span style="background:#ef4444;color:#fff;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">NOUVEAU</span>') + '</div><div style="color:var(--text)">' + data.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') + '</div>';
+    item.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">' + author + ' · ' + dateStr + (isSeen ? '' : ' <span style="background:#ef4444;color:#fff;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">NOUVEAU</span>') + '</div><div style="color:var(--text)">' + data.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') + '</div>';
     listEl.appendChild(item);
   });
 

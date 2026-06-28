@@ -32,7 +32,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ── Demande d'accès aux fichiers externes ──
+        // ── Permissions ──
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
                 try {
@@ -68,6 +68,7 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(true); // Pour Firebase Auth Popup
 
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
@@ -145,7 +146,7 @@ public class MainActivity extends Activity {
             try {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 request.setTitle("Téléchargement de " + fileName);
-                request.setDescription("PWA-APK Studio");
+                request.setDescription("PWA-APK Studio Admin");
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
                 
@@ -170,29 +171,16 @@ public class MainActivity extends Activity {
             webView.goBack();
             return;
         }
-        webView.evaluateJavascript(
-            "(function(){ try{ return localStorage.getItem('nps_quit_confirm'); }catch(e){ return null; } })()",
-            new ValueCallback<String>() {
+        new AlertDialog.Builder(MainActivity.this)
+            .setTitle("Quitter")
+            .setMessage("Voulez-vous vraiment quitter PWA-APK Studio ?")
+            .setPositiveButton("Quitter", new DialogInterface.OnClickListener() {
                 @Override
-                public void onReceiveValue(String value) {
-                    boolean showConfirm = !("\"0\"".equals(value));
-                    if (showConfirm) {
-                        new AlertDialog.Builder(MainActivity.this)
-                            .setTitle("Quitter l'application")
-                            .setMessage("Voulez-vous vraiment quitter PWA-APK Studio ?")
-                            .setPositiveButton("Quitter", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    finish();
-                                }
-                            })
-                            .setNegativeButton("Annuler", null)
-                            .show();
-                    } else {
-                        finish();
-                    }
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
                 }
-            }
-        );
+            })
+            .setNegativeButton("Annuler", null)
+            .show();
     }
 }

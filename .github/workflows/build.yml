@@ -62,7 +62,7 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
 
-      - name: 5. Appliquer paramètres du build
+      - name: 5. Appliquer paramètres du build et corriger AndroidX
         run: |
           APP_NAME="${{ github.event.inputs.app_name || 'PWA-APK Studio' }}"
           PKG="${{ github.event.inputs.package_id || 'com.nps.pwa.studio' }}"
@@ -70,6 +70,13 @@ jobs:
           echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
           echo "PKG=$PKG" >> $GITHUB_ENV
           echo "VER=$VER" >> $GITHUB_ENV
+          
+          # Correction AndroidX/Jetifier (CRUCIAL)
+          sed -i "/android.useAndroidX/d" gradle.properties || true
+          sed -i "/android.enableJetifier/d" gradle.properties || true
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          
           # Mettre à jour le nom de l'app dans strings.xml
           sed -i "s|<string name=\"app_name\">.*</string>|<string name=\"app_name\">$APP_NAME</string>|" app/src/main/res/values/strings.xml || true
           # Mettre à jour le namespace et applicationId
@@ -85,12 +92,7 @@ jobs:
               printf "%s" "$IC_B64" | base64 -d > "app/src/main/res/$DIR/ic_launcher.png"
             fi
           done
-          # Forcer AndroidX et Jetifier
-          sed -i "/android.useAndroidX/d" gradle.properties 2>/dev/null || true
-          sed -i "/android.enableJetifier/d" gradle.properties 2>/dev/null || true
-          echo "android.useAndroidX=true" >> gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-          echo "✅ Paramètres appliqués"
+          echo "✅ Paramètres appliqués et build fiabilisé"
 
       - name: 6. Télécharger Gradle Wrapper JAR
         run: |

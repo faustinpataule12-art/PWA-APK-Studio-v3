@@ -1978,7 +1978,7 @@ function pushFileToRepo(token, owner, repo, filePath, content, message, isPreB64
 // ── INITIALISER UN NOUVEAU DÉPÔT AVEC BOILERPLATE ANDROID ────
 var BOILERPLATE_WORKFLOW_B64 = 'bmFtZTogQnVpbGQgUFdBIHRvIEFuZHJvaWQgQVBLCgpvbjoKICBwdXNoOgogICAgYnJhbmNoZXM6IFsgbWFpbiBdCiAgd29ya2Zsb3dfZGlzcGF0Y2g6CiAgICBpbnB1dHM6CiAgICAgIGFwcF9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiTm9tIGRlIGwnYXBwbGljYXRpb24iCiAgICAgICAgcmVxdWlyZWQ6IGZhbHNlCiAgICAgICAgZGVmYXVsdDogIk1vbkFwcCIKICAgICAgcGFja2FnZV9pZDoKICAgICAgICBkZXNjcmlwdGlvbjogIlBhY2thZ2UgQW5kcm9pZCAoZXg6IGNvbS5ucHMubW9uYXBwKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiY29tLm5wcy5wd2Euc3R1ZGlvIgogICAgICBwd2FfdXJsOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVVJMIGRlIGxhIFBXQSBIVFRQUyIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIgogICAgICB0aGVtZV9jb2xvcjoKICAgICAgICBkZXNjcmlwdGlvbjogIkNvdWxldXIgdGjDqG1lICgjcnJnZ2JiKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiIzdjNmVmZiIKICAgICAgdmVyc2lvbl9uYW1lOgogICAgICAgIGRlc2NyaXB0aW9uOiAiVmVyc2lvbiAoZXg6IDEuMC4wKSIKICAgICAgICByZXF1aXJlZDogZmFsc2UKICAgICAgICBkZWZhdWx0OiAiMS4wLjAiCiAgICAgIG1pbl9zZGs6CiAgICAgICAgZGVzY3JpcHRpb246ICJTREsgQW5kcm9pZCBtaW5pbXVtIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIyMyIKICAgICAgcGVybWlzc2lvbnM6CiAgICAgICAgZGVzY3JpcHRpb246ICJQZXJtaXNzaW9ucyBzw6lwYXLDqWVzIHBhciB2aXJndWxlIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCiAgICAgIGJ1aWxkX2lkOgogICAgICAgIGRlc2NyaXB0aW9uOiAiSUQgdW5pcXVlIGR1IGJ1aWxkIgogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICAgIGRlZmF1bHQ6ICIiCgpqb2JzOgogIGJ1aWxkOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gbmFtZTogMS4gUsOpY3Vww6lyYXRpb24gZHUgY29kZSBzb3VyY2UKICAgICAgICB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CgogICAgICAtIG5hbWU6IDIuIENvbmZpZ3VyYXRpb24gZGUgSmF2YSBKREsgMTcKICAgICAgICB1c2VzOiBhY3Rpb25zL3NldHVwLWphdmFAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgZGlzdHJpYnV0aW9uOiAndGVtdXJpbicKICAgICAgICAgIGphdmEtdmVyc2lvbjogJzE3JwogICAgICAgICAgY2FjaGU6IGdyYWRsZQoKICAgICAgLSBuYW1lOiAzLiBDb25maWd1cmF0aW9uIGRlIGwnQW5kcm9pZCBTREsKICAgICAgICB1c2VzOiBhbmRyb2lkLWFjdGlvbnMvc2V0dXAtYW5kcm9pZEB2MwoKICAgICAgLSBuYW1lOiA0LiBJbnN0YWxsZXIgY29tcG9zYW50cyBTREsKICAgICAgICBydW46IHwKICAgICAgICAgIHllcyB8IHNka21hbmFnZXIgLS1saWNlbnNlcyB8fCB0cnVlCiAgICAgICAgICBzZGttYW5hZ2VyICJwbGF0Zm9ybXM7YW5kcm9pZC0zMyIgImJ1aWxkLXRvb2xzOzMzLjAuMiIgInBsYXRmb3JtLXRvb2xzIgoKICAgICAgLSBuYW1lOiA1LiBBcHBsaXF1ZXIgcGFyYW3DqHRyZXMgZHUgYnVpbGQKICAgICAgICBydW46IHwKICAgICAgICAgIEFQUF9OQU1FPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5hcHBfbmFtZSB8fCAnUFdBLUFQSyBTdHVkaW8nIH19IgogICAgICAgICAgUEtHPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5wYWNrYWdlX2lkIHx8ICdjb20ubnBzLnB3YS5zdHVkaW8nIH19IgogICAgICAgICAgVkVSPSIke3sgZ2l0aHViLmV2ZW50LmlucHV0cy52ZXJzaW9uX25hbWUgfHwgJzEuMC4wJyB9fSIKICAgICAgICAgIGVjaG8gIkFQUF9OQU1FPSRBUFBfTkFNRSIgPj4gJEdJVEhVQl9FTlYKICAgICAgICAgIGVjaG8gIlBLRz0kUEtHIiA+PiAkR0lUSFVCX0VOVgogICAgICAgICAgZWNobyAiVkVSPSRWRVIiID4+ICRHSVRIVUJfRU5WCiAgICAgICAgICAjIE1ldHRyZSDDoCBqb3VyIGxlIG5vbSBkZSBsJ2FwcCBkYW5zIHN0cmluZ3MueG1sCiAgICAgICAgICBzZWQgLWkgInN8PHN0cmluZyBuYW1lPVwiYXBwX25hbWVcIj4uKjwvc3RyaW5nPnw8c3RyaW5nIG5hbWU9XCJhcHBfbmFtZVwiPiRBUFBfTkFNRTwvc3RyaW5nPnwiIGFwcC9zcmMvbWFpbi9yZXMvdmFsdWVzL3N0cmluZ3MueG1sIHx8IHRydWUKICAgICAgICAgICMgTWV0dHJlIMOgIGpvdXIgbGUgbmFtZXNwYWNlIGV0IGFwcGxpY2F0aW9uSWQKICAgICAgICAgIHNlZCAtaSAic3xuYW1lc3BhY2UgJ2NvbS5ucHMucHdhLnN0dWRpbyd8bmFtZXNwYWNlICckUEtHJ3xnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3xhcHBsaWNhdGlvbklkIFwiY29tLm5wcy5wd2Euc3R1ZGlvXCJ8YXBwbGljYXRpb25JZCBcIiRQS0dcInxnIiBhcHAvYnVpbGQuZ3JhZGxlIHx8IHRydWUKICAgICAgICAgIHNlZCAtaSAic3x2ZXJzaW9uTmFtZSBcIjEuMFwifHZlcnNpb25OYW1lIFwiJFZFUlwifGciIGFwcC9idWlsZC5ncmFkbGUgfHwgdHJ1ZQogICAgICAgICAgZWNobyAi4pyFIFBhcmFtw6h0cmVzIGFwcGxpcXXDqXMiCgogICAgICAtIG5hbWU6IDYuIFTDqWzDqWNoYXJnZXIgR3JhZGxlIFdyYXBwZXIgSkFSCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBta2RpciAtcCBncmFkbGUvd3JhcHBlcgogICAgICAgICAgY3VybCAtZnNTTCAtbyBncmFkbGUvd3JhcHBlci9ncmFkbGUtd3JhcHBlci5qYXIgXAogICAgICAgICAgICBodHRwczovL2dpdGh1Yi5jb20vZ3JhZGxlL2dyYWRsZS9yYXcvdjguMi4wL2dyYWRsZS93cmFwcGVyL2dyYWRsZS13cmFwcGVyLmphcgoKICAgICAgLSBuYW1lOiA3LiBSZW5kcmUgZ3JhZGxldyBleMOpY3V0YWJsZQogICAgICAgIHJ1bjogY2htb2QgK3ggZ3JhZGxldwoKICAgICAgLSBuYW1lOiA4LiBDb21waWxhdGlvbiBBUEsgRGVidWcKICAgICAgICBydW46IC4vZ3JhZGxldyBhc3NlbWJsZURlYnVnIC0tbm8tZGFlbW9uIC0tc3RhY2t0cmFjZQoKICAgICAgLSBuYW1lOiA5LiBQdWJsaWNhdGlvbiBBUEsKICAgICAgICB1c2VzOiBhY3Rpb25zL3VwbG9hZC1hcnRpZmFjdEB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBuYW1lOiBhcGstJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuYnVpbGRfaWQgfHwgJ2xhdGVzdCcgfX0KICAgICAgICAgIHBhdGg6IGFwcC9idWlsZC9vdXRwdXRzL2Fway9kZWJ1Zy8qLmFwawogICAgICAgICAgcmV0ZW50aW9uLWRheXM6IDMwCgogICAgICAtIG5hbWU6IDEwLiBJbmZvcyBkdSBidWlsZAogICAgICAgIHJ1bjogfAogICAgICAgICAgZWNobyAiPT09IEJ1aWxkIHRlcm1pbsOpIGF2ZWMgc3VjY8OocyA9PT0iCiAgICAgICAgICBlY2hvICJBcHA6ICR7eyBnaXRodWIuZXZlbnQuaW5wdXRzLmFwcF9uYW1lIHx8ICdQV0EtQVBLIFN0dWRpbycgfX0iCiAgICAgICAgICBlY2hvICJQYWNrYWdlOiAke3sgZ2l0aHViLmV2ZW50LmlucHV0cy5wYWNrYWdlX2lkIHx8ICdjb20ubnBzLnB3YS5zdHVkaW8nIH19IgogICAgICAgICAgZWNobyAiVmVyc2lvbjogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMudmVyc2lvbl9uYW1lIHx8ICcxLjAuMCcgfX0iCiAgICAgICAgICBscyAtbGggYXBwL2J1aWxkL291dHB1dHMvYXBrL2RlYnVnLyouYXBrIDI+L2Rldi9udWxsIHx8IGVjaG8gIkFQSyBub24gdHJvdXbDqSIK';
 
-function setupNewRepo(token, owner, repo, appName, pkg, method, pwaUrl, webFiles, term) {
+function setupNewRepo(token, owner, repo, appName, pkg, method, pwaUrl, webFiles, term, iconFile, splashFile) {
   termLine(term, 'Configuration du projet Android dans le depot...', 'i');
   var pkgPath = pkg.replace(/\./g, '/');
   var safeName = appName.replace(/[^a-zA-Z0-9_]/g, '_') || 'MonApp';
@@ -2049,7 +2049,27 @@ function setupNewRepo(token, owner, repo, appName, pkg, method, pwaUrl, webFiles
     });
   }
 
-  return sleep(5000).then(function() { return pushNext(); });
+  return sleep(5000).then(function() { return pushNext(); }).then(function() {
+    // Gerer les fichiers d'icone et splash s'ils existent
+    if (iconFile) {
+      termLine(term, 'Upload icone personnalisee...', 'i');
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64Icon = e.target.result.split(',')[1];
+        pushFileToRepo(token, owner, repo, 'app/src/main/res/mipmap-hdpi/ic_launcher.png', base64Icon, 'Add custom icon', true);
+      };
+      reader.readAsDataURL(iconFile);
+    }
+    if (splashFile) {
+      termLine(term, 'Upload splash screen personnalise...', 'i');
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64Splash = e.target.result.split(',')[1];
+        pushFileToRepo(token, owner, repo, 'app/src/main/res/drawable/splash.png', base64Splash, 'Add custom splash', true);
+      };
+      reader.readAsDataURL(splashFile);
+    }
+  });
 }
 
 // ── ORCHESTRATEUR COMMUN MÉTHODES 1 & 2 ─────────────────────
@@ -2097,7 +2117,9 @@ function runAutoMethod(method) {
     termLine(term, 'Envoi du projet Android...', 'i');
     var webFiles = method === 1 ? m1Files : {};
     var convMethod = method === 1 ? 'webview' : 'twa';
-    return setupNewRepo(token, createdOwner, createdRepo, name, pkg, convMethod, pwaUrl, webFiles, term);
+    var iconFile = document.getElementById('c-icon-file').files[0] || null;
+    var splashFile = document.getElementById('c-splash-file').files[0] || null;
+    return setupNewRepo(token, createdOwner, createdRepo, name, pkg, convMethod, pwaUrl, webFiles, term, iconFile, splashFile);
   }).then(function() {
     bar.style.width = '45%';
     termLine(term, 'Fichiers envoyes. Lancement du build...', 's');
